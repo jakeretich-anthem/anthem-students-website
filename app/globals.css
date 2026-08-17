@@ -1082,3 +1082,207 @@ button {
   opacity: 0.45;
   pointer-events: none;
 }
+
+/* ── admin: dashboard shell (sidebar + main) ── */
+.admin-dash {
+  position: relative;
+  z-index: 2;
+  min-height: 100dvh;
+  display: flex;
+}
+.admin-side {
+  width: 190px;
+  flex: none;
+  padding: 22px 16px;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  flex-direction: column;
+}
+.admin-side-brand {
+  font-family: var(--display);
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--ice);
+  margin-bottom: 24px;
+}
+.admin-nav-item {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ash);
+  padding: 9px 10px;
+  border-radius: 7px;
+  margin-bottom: 2px;
+}
+.admin-nav-item.on {
+  color: var(--paper);
+  background: rgba(127, 227, 255, 0.09);
+}
+.admin-nav-item:hover {
+  color: var(--paper);
+}
+.admin-side-foot {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.admin-main {
+  flex: 1;
+  min-width: 0;
+  padding: 26px 28px 70px;
+  max-width: 720px;
+}
+.admin-mhead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.admin-mhead h1 {
+  font-family: var(--display);
+  font-size: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  color: #fff;
+}
+.admin-msub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ash);
+  margin-top: 4px;
+  letter-spacing: 0.06em;
+}
+.admin-mhead-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.admin-status-badge {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 20px;
+  border: 1px solid;
+}
+.admin-status-badge.draft {
+  color: var(--ash);
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+}
+.admin-status-badge.live {
+  color: #3dffa0;
+  border-color: rgba(61, 255, 160, 0.35);
+  background: rgba(61, 255, 160, 0.08);
+}
+.admin-autosave {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ash);
+}
+.admin-autosave[data-state="saving"] {
+  color: var(--ice);
+}
+.admin-autosave[data-state="saved"] {
+  color: #3dffa0;
+}
+.admin-autosave[data-state="error"] {
+  color: #ff6b9d;
+}
+
+.admin-fgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.admin-fgrid.cols-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+textarea.admin-input {
+  resize: vertical;
+  min-height: 52px;
+  line-height: 1.5;
+}
+textarea.admin-input.tall {
+  min-height: 100px;
+}
+
+.admin-daybox {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.admin-daybox-head {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hot);
+  margin-bottom: 10px;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 22px;
+}
+.admin-actions .btn {
+  display: inline-block;
+  width: auto;
+  padding: 13px 18px;
+}
+.admin-actions form {
+  display: contents;
+}
+
+.admin-imgpick {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.admin-imgpick-preview {
+  width: 76px;
+  height: 76px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #101219 center/cover no-repeat;
+  flex: none;
+}
+
+.admin-weeks-list {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.admin-weeks-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: inherit;
+}
+.admin-weeks-row h5 {
+  font-size: 14px;
+  color: #e5e8f0;
+  font-weight: 600;
+}
+.admin-weeks-row p {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ash);
+  margin-top: 2px;
+}
+.admin-weeks-row .chev {
+  margin-left: auto;
+}
