@@ -1051,22 +1051,6 @@ button {
 }
 
 /* ── admin: signed-in shell ── */
-.admin-bar {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 22px 20px;
-}
-.admin-email {
-  font-family: var(--mono);
-  font-size: 14px;
-  color: var(--paper);
-}
 .admin-signout {
   font-family: var(--mono);
   font-size: 10.5px;
@@ -1128,6 +1112,11 @@ button {
   margin-top: auto;
   padding-top: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.admin-side-foot .admin-signout {
+  display: block;
+  width: 100%;
+  text-align: center;
 }
 .admin-main {
   flex: 1;
