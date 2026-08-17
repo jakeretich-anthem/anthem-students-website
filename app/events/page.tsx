@@ -1,50 +1,57 @@
 import StudentScreen from "../components/StudentScreen";
-import { events } from "../data/content";
+import { getEvents, getMenuSummary } from "../lib/data";
 
-export default function EventsPage() {
+function eventDateParts(iso: string) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return {
+    day: String(d.getUTCDate()).padStart(2, "0"),
+    month: d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" }),
+  };
+}
+
+export default async function EventsPage() {
+  const [events, menu] = await Promise.all([getEvents(), getMenuSummary()]);
+
   return (
-    <StudentScreen appbar={{ mode: "home", label: "Events" }}>
+    <StudentScreen appbar={{ mode: "home", label: "Events" }} menu={menu}>
       <div className="tape">Next 60 days</div>
       <div className="rule" />
 
-      {events.map((evt) => (
-        <div className="evt" key={evt.title}>
-          <div className="evtdate">
-            <b>{evt.day}</b>
-            <span>{evt.month}</span>
-          </div>
-          <div>
-            <h5>{evt.title}</h5>
-            <p>
-              {evt.timeLabel} · {evt.location}
-              <br />
-              {evt.detail}
-            </p>
-          </div>
+      {events.length === 0 ? (
+        <div className="emptystate">
+          <div className="kicker">Nothing on the calendar yet</div>
+          <p>Check back soon — upcoming dates will show up here.</p>
         </div>
-      ))}
-
-      <div style={{ height: 6 }} />
-
-      <a className="btn primary" href="#" target="_blank" rel="noreferrer">
-        Sign up for the retreat
-      </a>
-
-      <div style={{ height: 9 }} />
-
-      <button className="card" style={{ width: "100%", textAlign: "center" }}>
-        <div
-          style={{
-            fontFamily: "var(--mono)",
-            fontSize: 10,
-            letterSpacing: ".14em",
-            color: "var(--ash)",
-            textTransform: "uppercase",
-          }}
-        >
-          Add all to your calendar
-        </div>
-      </button>
+      ) : (
+        events.map((evt) => {
+          const { day, month } = eventDateParts(evt.event_date);
+          return (
+            <div className="evt" key={evt.id}>
+              <div className="evtdate">
+                <b>{day}</b>
+                <span>{month}</span>
+              </div>
+              <div>
+                <h5>{evt.title}</h5>
+                <p>
+                  {[evt.time_label, evt.location].filter(Boolean).join(" · ")}
+                  {evt.detail ? (
+                    <>
+                      <br />
+                      {evt.detail}
+                    </>
+                  ) : null}
+                </p>
+                {evt.signup_url && (
+                  <a className="evt-signup" href={evt.signup_url} target="_blank" rel="noreferrer">
+                    Sign up →
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })
+      )}
     </StudentScreen>
   );
 }

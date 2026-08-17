@@ -2,14 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Menu from "./Menu";
+import type { MenuSummary } from "../lib/data";
 
 export default function ParentScreen({
   eyebrow,
   title,
+  menu,
   children,
 }: {
   eyebrow: string;
   title: string;
+  menu: MenuSummary;
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -35,7 +38,7 @@ export default function ParentScreen({
         </button>
       </div>
       <div className="screen-body">{children}</div>
-      <Menu open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <Menu open={menuOpen} onClose={() => setMenuOpen(false)} data={menu} />
     </div>
   );
 }

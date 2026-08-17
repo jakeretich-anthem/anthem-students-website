@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-export default function DayComplete({ dayNumber }: { dayNumber: number }) {
+export default function DayComplete({ weekId, dayNumber }: { weekId: number; dayNumber: number }) {
   const [done, setDone] = useState(false);
-  const doneKey = `anthemDayDone${dayNumber}`;
+  const doneKey = `anthemDayDone-${weekId}-${dayNumber}`;
 
   useEffect(() => {
     try {

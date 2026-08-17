@@ -3,19 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { archive, events, verse, week } from "../data/content";
+import type { MenuSummary } from "../lib/data";
 
-const archiveCount = archive.reduce((n, series) => n + series.weeks.length, 0);
-
-const items = [
-  { href: "/", label: "This Week", small: `${week.seriesName} · Week ${week.seriesWeekNumber}` },
-  { href: "/verse", label: "Memory Verse", small: `${verse.reference} · Level 2` },
-  { href: "/events", label: "Events", small: `${events.length} coming up` },
-  { href: "/archive", label: "Past Weeks", small: `${archiveCount} in the archive` },
-  { href: "/parents", label: "For Parents", small: "This week's guide" },
-];
-
-export default function Menu({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function Menu({
+  open,
+  onClose,
+  data,
+}: {
+  open: boolean;
+  onClose: () => void;
+  data: MenuSummary;
+}) {
   const pathname = usePathname();
   const [reduceEffects, setReduceEffects] = useState(false);
 
@@ -33,6 +31,18 @@ export default function Menu({ open, onClose }: { open: boolean; onClose: () => 
       // localStorage unavailable — the toggle still works for this visit
     }
   }
+
+  const items = [
+    {
+      href: "/",
+      label: "This Week",
+      small: data.seriesName ? `${data.seriesName} · Week ${data.seriesWeekNumber}` : "Nothing published yet",
+    },
+    { href: "/verse", label: "Memory Verse", small: data.verseReference ?? "Nothing to practice yet" },
+    { href: "/events", label: "Events", small: `${data.eventsCount} coming up` },
+    { href: "/archive", label: "Past Weeks", small: `${data.archiveCount} in the archive` },
+    { href: "/parents", label: "For Parents", small: "This week's guide" },
+  ];
 
   return (
     <div className="menu" data-closed={!open} role="dialog" aria-modal="true" aria-label="Menu" aria-hidden={!open}>

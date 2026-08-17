@@ -238,6 +238,21 @@ button {
   margin-bottom: 9px;
 }
 
+.emptystate {
+  text-align: center;
+  padding: 54px 12px;
+}
+.emptystate .kicker {
+  margin-bottom: 12px;
+}
+.emptystate p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ash);
+  max-width: 320px;
+  margin: 10px auto 0;
+}
+
 .versecard {
   position: relative;
   z-index: 8;
@@ -671,6 +686,15 @@ button {
   font-size: 10.5px;
   color: var(--ash);
   line-height: 1.6;
+}
+.evt-signup {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ice);
+  margin-top: 8px;
 }
 
 /* ── archive ───────────────────────────────────── */

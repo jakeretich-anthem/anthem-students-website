@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Menu from "./Menu";
+import type { MenuSummary } from "../lib/data";
 
 type AppBar =
   | { mode: "home"; label?: string }
@@ -11,10 +12,12 @@ type AppBar =
 export default function StudentScreen({
   appbar,
   quiet,
+  menu,
   children,
 }: {
   appbar: AppBar;
   quiet?: boolean;
+  menu: MenuSummary;
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -46,7 +49,7 @@ export default function StudentScreen({
         </div>
       </div>
       <div className="screen-body">{children}</div>
-      <Menu open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <Menu open={menuOpen} onClose={() => setMenuOpen(false)} data={menu} />
     </div>
   );
 }

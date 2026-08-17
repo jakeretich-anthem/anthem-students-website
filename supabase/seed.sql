@@ -6,7 +6,7 @@ with new_week as (
         series_name, series_week_number, series_week_total,
         title, big_idea,
         verse_reference, verse_translation, verse_text,
-        recap, status, scheduled_publish_at, published_at
+        recap, heads_up, starters, status, scheduled_publish_at, published_at
     ) values (
         'Pressure', 2, 4,
         'When You Can''t Hold It Together',
@@ -14,6 +14,12 @@ with new_week as (
         '1 Peter 5:7', 'WEB',
         'Casting all your worries on him, because he cares for you.',
         'We looked at 1 Peter 5 and talked about the pressure to keep it together — at school, at home, online — and what it means to hand that weight to God instead of managing it alone.',
+        'We named anxiety directly tonight. Some students may bring it up this week. If yours does, you don''t need a perfect answer — just don''t change the subject.',
+        array[
+            'What''s something everyone assumes you''re fine about?',
+            'When you''re stressed, do you get loud or go quiet?',
+            'What''s one thing I could take off your plate this week?'
+        ],
         'live',
         '2026-08-14 07:00:00-07',
         '2026-08-14 07:00:00-07'

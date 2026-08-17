@@ -2,31 +2,44 @@ import Link from "next/link";
 import StudentScreen from "./components/StudentScreen";
 import Collapse from "./components/Collapse";
 import WeekPath from "./components/WeekPath";
-import { days, verse, week } from "./data/content";
+import { getCurrentWeek, getMenuSummary } from "./lib/data";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const [week, menu] = await Promise.all([getCurrentWeek(), getMenuSummary()]);
+
+  if (!week) {
+    return (
+      <StudentScreen appbar={{ mode: "home" }} menu={menu}>
+        <div className="emptystate">
+          <div className="kicker">Nothing published yet</div>
+          <p>This is where next week&rsquo;s stuff will show up. Check back after Wednesday night.</p>
+        </div>
+      </StudentScreen>
+    );
+  }
+
   return (
-    <StudentScreen appbar={{ mode: "home" }}>
+    <StudentScreen appbar={{ mode: "home" }} menu={menu}>
       <div className="tape">
-        Series: {week.seriesName} · Week {week.seriesWeekNumber} of {week.seriesWeekTotal}
+        Series: {week.series_name} · Week {week.series_week_number} of {week.series_week_total}
       </div>
       <div className="rule" />
 
       <div className="kicker">This week&rsquo;s big idea</div>
-      <p className="bigidea">{week.bigIdea}</p>
+      <p className="bigidea">{week.big_idea}</p>
 
       <div style={{ height: 14 }} />
 
       <Link href="/verse" className="versecard">
-        <div className="versetext">&ldquo;{verse.text}&rdquo;</div>
+        <div className="versetext">&ldquo;{week.verse_text}&rdquo;</div>
         <div className="verseref">
-          {verse.reference} · Tap to practice →
+          {week.verse_reference} · Tap to practice →
         </div>
       </Link>
 
       <div className="dashrule" />
 
-      <WeekPath days={days} />
+      <WeekPath weekId={week.id} days={week.days} />
 
       <div style={{ height: 6 }} />
 

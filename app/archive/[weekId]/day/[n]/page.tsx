@@ -1,28 +1,31 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import StudentScreen from "../../../../components/StudentScreen";
-import { archive, findArchiveWeek } from "../../../../data/content";
-
-export function generateStaticParams() {
-  return archive
-    .flatMap((series) => series.weeks.filter((w) => !w.isCurrent))
-    .flatMap((w) => w.days.map((d) => ({ weekId: w.id, n: String(d.number) })));
-}
+import { getCurrentWeek, getMenuSummary, getPublishedWeekById } from "../../../../lib/data";
 
 export default async function ArchiveDayPage({ params }: { params: Promise<{ weekId: string; n: string }> }) {
   const { weekId, n } = await params;
-  const weekData = findArchiveWeek(weekId);
-  if (!weekData || weekData.isCurrent) notFound();
-  const day = weekData.days.find((d) => String(d.number) === n);
+  const id = Number(weekId);
+
+  const [week, current, menu] = await Promise.all([
+    getPublishedWeekById(id),
+    getCurrentWeek(),
+    getMenuSummary(),
+  ]);
+  if (!week) notFound();
+  if (current?.id === week.id) redirect(`/day/${n}`);
+
+  const day = week.days.find((d) => String(d.day_number) === n);
   if (!day) notFound();
 
   return (
     <StudentScreen
       appbar={{
         mode: "back",
-        href: `/archive/${weekData.id}`,
-        label: weekData.weekLabel,
-        step: `Day ${day.number} / ${weekData.days.length}`,
+        href: `/archive/${week.id}`,
+        label: `Week ${week.series_week_number}`,
+        step: `Day ${day.day_number} / ${week.days.length}`,
       }}
+      menu={menu}
       quiet
     >
       <p className="bigidea" style={{ fontSize: 23 }}>
@@ -32,8 +35,8 @@ export default async function ArchiveDayPage({ params }: { params: Promise<{ wee
       <div style={{ height: 13 }} />
 
       <div className="passage">
-        <div className="pref">{day.passageReference}</div>
-        <p>{day.passageText}</p>
+        <div className="pref">{day.passage_reference}</div>
+        <p>{day.passage_text}</p>
       </div>
 
       <div className="thought">{day.thought}</div>

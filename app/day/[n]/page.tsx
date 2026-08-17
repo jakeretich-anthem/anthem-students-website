@@ -1,20 +1,20 @@
 import { notFound } from "next/navigation";
 import StudentScreen from "../../components/StudentScreen";
 import DayComplete from "../../components/DayComplete";
-import { days } from "../../data/content";
-
-export function generateStaticParams() {
-  return days.map((d) => ({ n: String(d.number) }));
-}
+import { getCurrentWeek, getMenuSummary } from "../../lib/data";
 
 export default async function DayPage({ params }: { params: Promise<{ n: string }> }) {
   const { n } = await params;
-  const day = days.find((d) => String(d.number) === n);
+  const [week, menu] = await Promise.all([getCurrentWeek(), getMenuSummary()]);
+  if (!week) notFound();
+
+  const day = week.days.find((d) => String(d.day_number) === n);
   if (!day) notFound();
 
   return (
     <StudentScreen
-      appbar={{ mode: "back", href: "/", label: "This week", step: `Day ${day.number} / ${days.length}` }}
+      appbar={{ mode: "back", href: "/", label: "This week", step: `Day ${day.day_number} / ${week.days.length}` }}
+      menu={menu}
       quiet
     >
       <p className="bigidea" style={{ fontSize: 23 }}>
@@ -24,8 +24,8 @@ export default async function DayPage({ params }: { params: Promise<{ n: string 
       <div style={{ height: 13 }} />
 
       <div className="passage">
-        <div className="pref">{day.passageReference}</div>
-        <p>{day.passageText}</p>
+        <div className="pref">{day.passage_reference}</div>
+        <p>{day.passage_text}</p>
       </div>
 
       <div className="thought">{day.thought}</div>
@@ -36,7 +36,7 @@ export default async function DayPage({ params }: { params: Promise<{ n: string 
 
       <div className="journalnote">✎ Write your answer in your journal</div>
 
-      <DayComplete dayNumber={day.number} />
+      <DayComplete weekId={week.id} dayNumber={day.day_number} />
     </StudentScreen>
   );
 }
