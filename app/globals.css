@@ -1,0 +1,780 @@
+:root {
+  --void: #06060a;
+  --wall: #0b0c12;
+  --panel: #12141c;
+  --panel-2: #171a24;
+  --ice: #7fe3ff;
+  --hot: #ff2f87;
+  --uv: #4b6dff;
+  --paper: #e9ebf2;
+  --ash: #7d8496;
+  --line: rgba(127, 227, 255, 0.16);
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --display: "Anton", Impact, sans-serif;
+
+  /* gold — parent skin only */
+  --gold: #c9a961;
+
+  /* 1 = full retro effects, 0 = reduced (toggle or prefers-reduced-motion) */
+  --fx: 1;
+  --glow-hot: color-mix(in srgb, rgba(255, 47, 135, 0.55) calc(var(--fx) * 100%), transparent);
+  --glow-uv: color-mix(in srgb, rgba(75, 109, 255, 0.5) calc(var(--fx) * 100%), transparent);
+  --glow-ice: color-mix(in srgb, rgba(127, 227, 255, 0.3) calc(var(--fx) * 100%), transparent);
+  --glow-ice-strong: color-mix(in srgb, rgba(127, 227, 255, 0.7) calc(var(--fx) * 100%), transparent);
+  --glow-ice-btn: color-mix(in srgb, rgba(127, 227, 255, 0.5) calc(var(--fx) * 100%), transparent);
+  --glow-uv-btn: color-mix(in srgb, rgba(75, 109, 255, 0.42) calc(var(--fx) * 100%), transparent);
+  --glow-hot-btn: color-mix(in srgb, rgba(255, 47, 135, 0.35) calc(var(--fx) * 100%), transparent);
+  --glow-hot-strong: color-mix(in srgb, rgba(255, 47, 135, 0.6) calc(var(--fx) * 100%), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fx: 0;
+  }
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+:root[data-reduce-effects="true"] {
+  --fx: 0;
+}
+:root[data-reduce-effects="true"] *,
+:root[data-reduce-effects="true"] *::before,
+:root[data-reduce-effects="true"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--void);
+  color: var(--paper);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.55;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: inherit;
+}
+
+/* ── per-screen shell ─────────────────────────────
+   Every student/parent route renders inside .screen. It carries the
+   scanline + vignette as pseudo-elements (never position:fixed — a
+   fixed overlay repaints on every scroll tick and janks mobile Safari).
+   translateZ(0) promotes the pseudo-element to its own compositor layer
+   so the repeating-gradient paint cost stays off the scroll thread. */
+.screen {
+  position: relative;
+  min-height: 100dvh;
+  background: #08080d;
+  overflow: hidden;
+}
+.screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  transform: translateZ(0);
+  will-change: transform;
+  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay;
+  opacity: var(--fx);
+}
+.screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 7;
+  transform: translateZ(0);
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.75), inset 0 0 120px rgba(75, 109, 255, 0.06);
+}
+/* the daily/journal screen dials scanlines down further still */
+.screen.quiet::after {
+  opacity: calc(var(--fx) * 0.4);
+}
+
+/* ── app chrome ───────────────────────────────── */
+.appbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) 18px 14px;
+  position: relative;
+  z-index: 3;
+}
+.appbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.wordmark {
+  font-family: var(--display);
+  font-size: 17px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transform: skewX(-7deg);
+  color: var(--ice);
+  text-shadow: 1px 0 0 var(--glow-hot), -1px 0 0 var(--glow-uv);
+}
+.burger {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  margin: -8px;
+}
+.burger i {
+  width: 19px;
+  height: 2px;
+  background: var(--ice);
+  display: block;
+  box-shadow: 0 0 6px var(--glow-ice-btn);
+}
+.backbtn {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ice);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 8px 0;
+}
+.stepmark {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ash);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.screen-body {
+  position: relative;
+  z-index: 3;
+  padding: 0 18px calc(env(safe-area-inset-bottom, 0px) + 28px);
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+/* retro utility bits */
+.tape {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--hot);
+}
+.rule {
+  height: 1px;
+  background: var(--line);
+  margin: 14px 0;
+}
+.dashrule {
+  height: 1px;
+  background: repeating-linear-gradient(90deg, var(--line) 0 4px, transparent 4px 8px);
+  margin: 14px 0;
+}
+
+/* ── clean content cards — deliberately non-retro, sit above scanlines ── */
+.card {
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 15px;
+  position: relative;
+  z-index: 8;
+}
+.card.lift {
+  background: var(--panel-2);
+}
+
+.bigidea {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  color: #fff;
+  margin: 2px 0 4px;
+  position: relative;
+  z-index: 8;
+}
+.kicker {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ice);
+  margin-bottom: 9px;
+}
+
+.versecard {
+  position: relative;
+  z-index: 8;
+  border: 1px solid rgba(255, 47, 135, 0.32);
+  border-radius: 12px;
+  padding: 15px 16px;
+  background: linear-gradient(155deg, rgba(255, 47, 135, 0.1), rgba(18, 20, 28, 0.9));
+  display: block;
+  width: 100%;
+}
+.versetext {
+  font-size: 17px;
+  line-height: 1.5;
+  color: #fff;
+  font-weight: 500;
+}
+.verseref {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--hot);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-top: 10px;
+}
+
+.pathhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 9px;
+  position: relative;
+  z-index: 8;
+}
+.dots {
+  display: flex;
+  gap: 6px;
+}
+.dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--ice);
+  display: block;
+  opacity: 0.45;
+}
+.dots i.on {
+  background: var(--ice);
+  opacity: 1;
+  box-shadow: 0 0 8px var(--glow-ice-strong);
+}
+
+.daycard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 11px;
+  padding: 13px;
+  margin-bottom: 9px;
+  position: relative;
+  z-index: 8;
+}
+.daycard.done {
+  border-color: rgba(61, 255, 160, 0.3);
+  background: rgba(61, 255, 160, 0.05);
+}
+.daycard.next {
+  border-color: rgba(127, 227, 255, 0.4);
+  box-shadow: 0 0 0 1px rgba(127, 227, 255, 0.14), 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+.daynum {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ash);
+  width: 40px;
+  flex: none;
+  letter-spacing: 0.1em;
+  text-align: left;
+}
+.daycard.done .daynum {
+  color: #3dffa0;
+}
+.daytitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.25;
+}
+.daysub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ash);
+  margin-top: 2px;
+}
+.chev {
+  margin-left: auto;
+  color: var(--ash);
+  font-size: 15px;
+}
+
+.collapse {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 11px;
+  padding: 14px;
+  position: relative;
+  z-index: 8;
+}
+.collapse span:first-child {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #e5e8f0;
+}
+.collapse-body {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: #b3b9c8;
+  padding: 14px 2px 2px;
+  position: relative;
+  z-index: 8;
+}
+
+.linkrow {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ice);
+  padding: 16px 0 4px;
+  position: relative;
+  z-index: 8;
+}
+
+/* reading surface — scripture */
+.passage {
+  background: #14161e;
+  border-left: 2px solid var(--ice);
+  border-radius: 0 10px 10px 0;
+  padding: 15px 16px;
+  position: relative;
+  z-index: 8;
+}
+.passage p {
+  font-size: 17px;
+  line-height: 1.6;
+  color: #dfe3ec;
+}
+.passage .pref {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ice);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.thought {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #b6bccb;
+  margin: 16px 0;
+  position: relative;
+  z-index: 8;
+}
+.question {
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 12px;
+  position: relative;
+  z-index: 8;
+}
+.journalnote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ash);
+  margin-bottom: 18px;
+  position: relative;
+  z-index: 8;
+}
+
+.btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 15px;
+  border-radius: 10px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 600;
+  position: relative;
+  z-index: 8;
+}
+.btn.primary {
+  background: linear-gradient(180deg, #5478ff, #3355e8);
+  color: #fff;
+  box-shadow: 0 0 26px var(--glow-uv-btn), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.btn.ghost {
+  border: 1px solid var(--line);
+  color: var(--ice);
+  background: rgba(127, 227, 255, 0.05);
+}
+.btn.pink {
+  background: linear-gradient(180deg, #ff4d97, #e01c72);
+  color: #fff;
+  box-shadow: 0 0 26px var(--glow-hot-btn);
+}
+.btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* ── verse trainer ─────────────────────────────── */
+.blank {
+  display: inline-block;
+  min-width: 54px;
+  border-bottom: 2px solid var(--hot);
+  margin: 0 2px;
+  height: 19px;
+  vertical-align: -4px;
+  background: rgba(255, 47, 135, 0.07);
+  border-radius: 2px 2px 0 0;
+}
+.blank.filled {
+  border-bottom-color: rgba(127, 227, 255, 0.5);
+  background: transparent;
+}
+.levelbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 8;
+}
+.levelbar i {
+  flex: 1;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  display: block;
+  border-radius: 2px;
+}
+.levelbar i.on {
+  background: var(--hot);
+  box-shadow: 0 0 8px var(--glow-hot-strong);
+}
+.stat {
+  text-align: center;
+  padding: 14px 0;
+  position: relative;
+  z-index: 8;
+}
+.stat b {
+  font-family: var(--display);
+  font-size: 40px;
+  color: var(--ice);
+  display: block;
+  line-height: 1;
+  text-shadow: 0 0 20px var(--glow-ice);
+}
+.stat span {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ash);
+}
+
+/* ── menu overlay ──────────────────────────────── */
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #000;
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 20px calc(env(safe-area-inset-bottom, 0px) + 20px);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(0);
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+.menu[data-closed="true"] {
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.menu-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.menu-close {
+  color: var(--ice);
+  font-size: 20px;
+  padding: 8px;
+  margin: -8px;
+}
+.menuitem {
+  display: block;
+  width: 100%;
+  font-family: var(--display);
+  font-size: 27px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  transform: skewX(-7deg);
+  transform-origin: left;
+  color: #fff;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.menuitem.active {
+  color: var(--ice);
+  text-shadow: 1px 0 0 var(--glow-hot), -1px 0 0 var(--glow-uv);
+}
+.menuitem small {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--ash);
+  transform: skewX(7deg);
+  margin-top: 3px;
+  text-transform: uppercase;
+}
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 18px;
+}
+.toggle span {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ash);
+}
+.sw {
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  background: rgba(127, 227, 255, 0.18);
+  border: 1px solid var(--line);
+  position: relative;
+  flex: none;
+}
+.sw::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ice);
+  transition: transform 0.15s ease;
+}
+.sw[data-on="true"] {
+  background: rgba(127, 227, 255, 0.32);
+}
+.sw[data-on="true"]::after {
+  transform: translateX(18px);
+}
+
+/* ── events ────────────────────────────────────── */
+.evt {
+  display: flex;
+  gap: 13px;
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 11px;
+  padding: 13px;
+  margin-bottom: 10px;
+  position: relative;
+  z-index: 8;
+}
+.evtdate {
+  width: 46px;
+  flex: none;
+  text-align: center;
+  border-right: 1px solid var(--line);
+  padding-right: 11px;
+}
+.evtdate b {
+  display: block;
+  font-family: var(--display);
+  font-size: 23px;
+  color: var(--hot);
+  line-height: 1;
+}
+.evtdate span {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: var(--ash);
+  text-transform: uppercase;
+}
+.evt h5 {
+  font-size: 15px;
+  color: #fff;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.evt p {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ash);
+  line-height: 1.6;
+}
+
+/* ── archive ───────────────────────────────────── */
+.arch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  position: relative;
+  z-index: 8;
+}
+.archnum {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--hot);
+  width: 28px;
+  flex: none;
+}
+.arch h5 {
+  font-size: 14px;
+  color: #e5e8f0;
+  font-weight: 600;
+}
+.arch p {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ash);
+  margin-top: 2px;
+}
+
+/* ── parent skin — warmer, calmer, no neon ────────
+   Deliberately outside the --fx system and without .screen's scanline/
+   vignette pseudo-elements: this audience never gets the retro treatment,
+   so there's nothing to reduce or dial down. */
+.parent-screen {
+  position: relative;
+  min-height: 100dvh;
+  background: #0f1116;
+}
+.parent-appbar {
+  padding: calc(env(safe-area-inset-top, 0px) + 20px) 18px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.parent-burger {
+  opacity: 0.55;
+}
+.parent-burger i {
+  background: var(--gold);
+  box-shadow: none;
+}
+.parentwrap {
+  background: #0f1116;
+}
+.parenthead {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 21px;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+.parentsub {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 3px;
+}
+.callout {
+  background: rgba(201, 169, 97, 0.09);
+  border: 1px solid rgba(201, 169, 97, 0.28);
+  border-radius: 11px;
+  padding: 14px;
+  position: relative;
+  z-index: 8;
+}
+.callout .clabel {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 7px;
+}
+.callout p {
+  font-size: 15px;
+  line-height: 1.55;
+  color: #dfe3ec;
+}
+.starter {
+  display: flex;
+  gap: 11px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  position: relative;
+  z-index: 8;
+}
+.starter b {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--gold);
+  flex: none;
+}
+.starter p {
+  font-size: 15px;
+  line-height: 1.5;
+  color: #d3d8e3;
+}
+
+@media (min-width: 640px) {
+  .screen-body {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}

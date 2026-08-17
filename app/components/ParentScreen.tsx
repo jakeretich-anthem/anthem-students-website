@@ -1,0 +1,41 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Menu from "./Menu";
+
+export default function ParentScreen({
+  eyebrow,
+  title,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
+
+  return (
+    <div className="parent-screen">
+      <div className="appbar parent-appbar">
+        <div>
+          <div className="parentsub">{eyebrow}</div>
+          <div className="parenthead">{title}</div>
+        </div>
+        <button className="burger parent-burger" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
+          <i />
+          <i />
+          <i />
+        </button>
+      </div>
+      <div className="screen-body">{children}</div>
+      <Menu open={menuOpen} onClose={() => setMenuOpen(false)} />
+    </div>
+  );
+}
