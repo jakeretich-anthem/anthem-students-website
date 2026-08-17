@@ -1,0 +1,9 @@
+{
+  "name": "anthem-students-website",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.112.3"
+  }
+}
