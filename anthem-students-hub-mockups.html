@@ -1,0 +1,930 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Anthem Students Hub — Screen Designs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --void:#06060a;
+  --wall:#0b0c12;
+  --panel:#12141c;
+  --panel-2:#171a24;
+  --ice:#7fe3ff;
+  --hot:#ff2f87;
+  --uv:#4b6dff;
+  --paper:#e9ebf2;
+  --ash:#7d8496;
+  --line:rgba(127,227,255,.16);
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --display:'Anton',Impact,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--void);
+  color:var(--paper);
+  font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;
+  line-height:1.55;
+  overflow-x:hidden;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:100;
+  background:radial-gradient(ellipse 140% 90% at 50% 0%,rgba(75,109,255,.10),transparent 60%);
+}
+a{color:inherit}
+
+/* ── page shell ───────────────────────────────── */
+.wrap{max-width:1240px;margin:0 auto;padding:0 32px}
+
+/* ── masthead ─────────────────────────────────── */
+.mast{padding:72px 0 44px;position:relative}
+.mast::after{content:"";position:absolute;left:32px;right:32px;bottom:0;height:1px;
+  background:linear-gradient(90deg,var(--hot),var(--ice),transparent)}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--ice);margin-bottom:20px}
+.eyebrow .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#3dffa0;margin-right:9px;vertical-align:middle;box-shadow:0 0 8px #3dffa0}
+h1.title{
+  font-family:var(--display);font-size:clamp(46px,8.5vw,104px);line-height:.86;
+  letter-spacing:.01em;text-transform:uppercase;font-style:normal;
+  transform:skewX(-7deg);transform-origin:left;
+  color:var(--ice);
+  text-shadow:2px 0 0 rgba(255,47,135,.55),-2px 0 0 rgba(75,109,255,.5),0 0 34px rgba(127,227,255,.30);
+}
+h1.title span{display:block;font-size:.36em;color:var(--hot);letter-spacing:.14em;
+  text-shadow:0 0 22px rgba(255,47,135,.55);margin-top:6px}
+.deck{max-width:640px;margin-top:28px;font-size:17px;color:#c4c9d6}
+.deck strong{color:var(--paper);font-weight:600}
+.metaRow{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
+.chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  border:1px solid var(--line);color:var(--ice);padding:7px 12px;border-radius:2px;background:rgba(127,227,255,.04)}
+
+/* ── premise strip ────────────────────────────── */
+.premise{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
+  margin:56px 0 0;border:1px solid var(--line)}
+.premise div{background:var(--wall);padding:22px 20px}
+.premise h4{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--hot);margin-bottom:10px}
+.premise p{font-size:14px;color:#aeb4c4;line-height:1.5}
+
+/* ── section headers ──────────────────────────── */
+.sect{padding:88px 0 0}
+.sectHead{display:flex;align-items:baseline;gap:18px;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:14px}
+.sectNum{font-family:var(--mono);font-size:12px;color:var(--hot);letter-spacing:.12em}
+.sectHead h2{font-family:var(--display);font-size:34px;text-transform:uppercase;letter-spacing:.02em;
+  transform:skewX(-7deg);color:var(--paper)}
+.sectNote{font-family:var(--mono);font-size:11px;color:var(--ash);letter-spacing:.1em;margin-left:auto;text-transform:uppercase}
+.sectIntro{font-size:15.5px;color:#a8aebd;max-width:720px;margin-bottom:48px}
+
+/* ── screen rows ──────────────────────────────── */
+.row{display:grid;grid-template-columns:340px 1fr;gap:56px;align-items:start;margin-bottom:76px}
+.row.wide{grid-template-columns:1fr}
+.note{padding-top:8px}
+.noteTag{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ice);
+  display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.noteTag::after{content:"";flex:1;height:1px;background:var(--line)}
+.note h3{font-family:var(--display);font-size:27px;text-transform:uppercase;letter-spacing:.015em;
+  transform:skewX(-7deg);transform-origin:left;margin-bottom:6px}
+.route{font-family:var(--mono);font-size:12px;color:var(--hot);margin-bottom:18px}
+.note p{font-size:15px;color:#b3b9c8;margin-bottom:16px;max-width:560px}
+.note ul{list-style:none;max-width:560px}
+.note li{font-size:14.5px;color:#a8aebd;padding-left:20px;position:relative;margin-bottom:9px}
+.note li::before{content:"▸";position:absolute;left:0;color:var(--ice);font-size:11px;top:1px}
+.note li b{color:var(--paper);font-weight:600}
+.why{border-left:2px solid var(--hot);padding:12px 0 12px 16px;margin-top:22px;max-width:560px}
+.why span{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--hot);display:block;margin-bottom:6px}
+.why p{font-size:14.5px;color:#c4c9d6;margin:0}
+
+/* ── PHONE (CRT) ──────────────────────────────── */
+.phone{
+  width:326px;height:668px;border-radius:34px;padding:11px;position:relative;flex:none;
+  background:linear-gradient(160deg,#22252f,#0c0d12 55%);
+  box-shadow:0 30px 70px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.05),0 0 42px rgba(75,109,255,.10);
+}
+.scr{
+  width:100%;height:100%;border-radius:25px;overflow:hidden;position:relative;
+  background:#08080d;display:flex;flex-direction:column;
+}
+/* the signature: scanlines live on the CHROME layer, content cards sit above them */
+.scr::after{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:6;border-radius:25px;
+  background:repeating-linear-gradient(180deg,rgba(255,255,255,.055) 0 1px,transparent 1px 3px);
+  mix-blend-mode:overlay;
+}
+.scr::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:7;border-radius:25px;
+  box-shadow:inset 0 0 60px rgba(0,0,0,.75),inset 0 0 120px rgba(75,109,255,.06);
+}
+.statusbar{display:flex;justify-content:space-between;align-items:center;padding:11px 20px 3px;
+  font-family:var(--mono);font-size:10px;color:#63697a;flex:none}
+.statusbar b{color:#8f96a8;font-weight:500}
+
+/* app chrome */
+.appbar{display:flex;align-items:center;justify-content:space-between;padding:6px 18px 12px;flex:none}
+.wordmark{font-family:var(--display);font-size:15px;letter-spacing:.05em;text-transform:uppercase;
+  transform:skewX(-7deg);color:var(--ice);
+  text-shadow:1px 0 0 rgba(255,47,135,.6),-1px 0 0 rgba(75,109,255,.5)}
+.burger{display:flex;flex-direction:column;gap:3.5px;padding:4px}
+.burger i{width:17px;height:1.5px;background:var(--ice);display:block;box-shadow:0 0 6px rgba(127,227,255,.5)}
+.backbtn{font-family:var(--mono);font-size:10.5px;color:var(--ice);letter-spacing:.12em;text-transform:uppercase}
+.stepmark{font-family:var(--mono);font-size:10px;color:var(--ash);letter-spacing:.18em;text-transform:uppercase}
+
+.body{flex:1;overflow:hidden;padding:0 18px 18px;position:relative;z-index:3}
+.body.pad0{padding-bottom:0}
+
+/* retro utility bits */
+.tape{font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--hot)}
+.rule{height:1px;background:var(--line);margin:14px 0}
+.dashrule{height:1px;background:repeating-linear-gradient(90deg,var(--line) 0 4px,transparent 4px 8px);margin:14px 0}
+
+/* CLEAN CONTENT CARDS — deliberately non-retro, sit above scanline layer */
+.card{background:var(--panel);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:15px 15px;position:relative;z-index:8}
+.card.lift{background:var(--panel-2)}
+
+.bigidea{font-family:var(--sans);font-weight:700;font-size:25px;line-height:1.16;letter-spacing:-.02em;color:#fff;margin:2px 0 4px}
+.kicker{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ice);margin-bottom:9px}
+
+.versecard{position:relative;z-index:8;border:1px solid rgba(255,47,135,.32);border-radius:12px;padding:14px 15px;
+  background:linear-gradient(155deg,rgba(255,47,135,.10),rgba(18,20,28,.9))}
+.versetext{font-size:15px;line-height:1.45;color:#fff;font-weight:500}
+.verseref{font-family:var(--mono);font-size:10px;color:var(--hot);letter-spacing:.14em;text-transform:uppercase;margin-top:9px}
+
+.pathhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
+.dots{display:flex;gap:5px}
+.dots i{width:7px;height:7px;border-radius:50%;border:1px solid var(--ice);display:block;opacity:.45}
+.dots i.on{background:var(--ice);opacity:1;box-shadow:0 0 8px rgba(127,227,255,.7)}
+.daycard{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid rgba(255,255,255,.07);
+  border-radius:11px;padding:12px 13px;margin-bottom:8px;position:relative;z-index:8}
+.daycard.done{border-color:rgba(61,255,160,.3);background:rgba(61,255,160,.05)}
+.daycard.next{border-color:rgba(127,227,255,.4);box-shadow:0 0 0 1px rgba(127,227,255,.14),0 6px 20px rgba(0,0,0,.4)}
+.daynum{font-family:var(--mono);font-size:10px;color:var(--ash);width:38px;flex:none;letter-spacing:.1em}
+.daycard.done .daynum{color:#3dffa0}
+.daytitle{font-size:14.5px;font-weight:600;color:#fff;line-height:1.25}
+.daysub{font-family:var(--mono);font-size:10px;color:var(--ash);margin-top:2px}
+.chev{margin-left:auto;color:var(--ash);font-size:14px}
+
+.collapse{display:flex;align-items:center;justify-content:space-between;background:var(--panel);
+  border:1px solid rgba(255,255,255,.07);border-radius:11px;padding:13px;position:relative;z-index:8}
+.collapse span{font-size:14px;font-weight:600;color:#e5e8f0}
+
+.linkrow{text-align:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ice);padding:14px 0 4px;position:relative;z-index:8}
+
+/* reading surface — scripture */
+.passage{background:#14161e;border-left:2px solid var(--ice);border-radius:0 10px 10px 0;padding:14px 15px;position:relative;z-index:8}
+.passage p{font-size:15.5px;line-height:1.62;color:#dfe3ec}
+.passage .pref{font-family:var(--mono);font-size:10px;color:var(--ice);letter-spacing:.14em;text-transform:uppercase;margin-bottom:9px}
+.thought{font-size:14.5px;line-height:1.58;color:#b6bccb;margin:14px 0}
+.question{font-size:17px;line-height:1.35;font-weight:600;color:#fff;margin-bottom:12px}
+.textarea{background:#0d0f15;border:1px solid rgba(127,227,255,.22);border-radius:10px;padding:12px;
+  min-height:92px;font-size:14px;line-height:1.5;color:#cdd3e0;position:relative;z-index:8}
+.textarea .caret{display:inline-block;width:1.5px;height:15px;background:var(--ice);vertical-align:-3px;margin-left:1px}
+.saved{font-family:var(--mono);font-size:9.5px;color:#3dffa0;letter-spacing:.14em;text-transform:uppercase;margin-top:7px;text-align:right}
+
+.btn{display:block;width:100%;text-align:center;padding:14px;border-radius:10px;font-family:var(--mono);
+  font-size:12px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;position:relative;z-index:8}
+.btn.primary{background:linear-gradient(180deg,#5478ff,#3355e8);color:#fff;
+  box-shadow:0 0 26px rgba(75,109,255,.42),inset 0 1px 0 rgba(255,255,255,.25)}
+.btn.ghost{border:1px solid var(--line);color:var(--ice);background:rgba(127,227,255,.05)}
+.btn.pink{background:linear-gradient(180deg,#ff4d97,#e01c72);color:#fff;box-shadow:0 0 26px rgba(255,47,135,.35)}
+
+/* verse trainer */
+.blank{display:inline-block;min-width:52px;border-bottom:2px solid var(--hot);margin:0 2px;
+  height:17px;vertical-align:-3px;background:rgba(255,47,135,.07)}
+.levelbar{display:flex;gap:5px;margin-bottom:14px}
+.levelbar i{flex:1;height:3px;background:rgba(255,255,255,.1);display:block;border-radius:2px}
+.levelbar i.on{background:var(--hot);box-shadow:0 0 8px rgba(255,47,135,.6)}
+.stat{text-align:center;padding:12px 0}
+.stat b{font-family:var(--display);font-size:38px;color:var(--ice);display:block;line-height:1;
+  text-shadow:0 0 20px rgba(127,227,255,.4)}
+.stat span{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ash)}
+
+/* menu overlay */
+.menu{position:absolute;inset:0;z-index:9;background:rgba(6,6,10,.96);padding:20px;display:flex;flex-direction:column}
+.menuitem{font-family:var(--display);font-size:26px;text-transform:uppercase;letter-spacing:.02em;
+  transform:skewX(-7deg);transform-origin:left;color:#fff;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.07)}
+.menuitem.active{color:var(--ice);text-shadow:1px 0 0 rgba(255,47,135,.55),-1px 0 0 rgba(75,109,255,.5)}
+.menuitem small{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--ash);
+  transform:skewX(7deg);margin-top:3px;text-transform:uppercase}
+.toggle{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:16px}
+.toggle span{font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ash)}
+.sw{width:38px;height:21px;border-radius:11px;background:rgba(127,227,255,.18);border:1px solid var(--line);position:relative}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:var(--ice)}
+
+/* events */
+.evt{display:flex;gap:12px;background:var(--panel);border:1px solid rgba(255,255,255,.07);border-radius:11px;
+  padding:12px;margin-bottom:9px;position:relative;z-index:8}
+.evtdate{width:44px;flex:none;text-align:center;border-right:1px solid var(--line);padding-right:10px}
+.evtdate b{display:block;font-family:var(--display);font-size:22px;color:var(--hot);line-height:1}
+.evtdate span{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ash);text-transform:uppercase}
+.evt h5{font-size:14px;color:#fff;font-weight:600;margin-bottom:3px}
+.evt p{font-family:var(--mono);font-size:10px;color:var(--ash);line-height:1.5}
+
+/* archive */
+.arch{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.06);position:relative;z-index:8}
+.archnum{font-family:var(--mono);font-size:10px;color:var(--hot);width:26px;flex:none}
+.arch h5{font-size:13.5px;color:#e5e8f0;font-weight:600}
+.arch p{font-family:var(--mono);font-size:9.5px;color:var(--ash);margin-top:2px}
+
+/* parent skin — warmer, calmer, no neon */
+.parentwrap{background:#0f1116}
+.parenthead{font-family:var(--sans);font-weight:700;font-size:20px;color:#fff;letter-spacing:-.01em}
+.parentsub{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#c9a961;margin-bottom:3px}
+.callout{background:rgba(201,169,97,.09);border:1px solid rgba(201,169,97,.28);border-radius:11px;padding:13px;position:relative;z-index:8}
+.callout .clabel{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#c9a961;margin-bottom:6px}
+.callout p{font-size:14px;line-height:1.5;color:#dfe3ec}
+.starter{display:flex;gap:10px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.06);position:relative;z-index:8}
+.starter b{font-family:var(--mono);font-size:11px;color:#c9a961;flex:none}
+.starter p{font-size:14px;line-height:1.45;color:#d3d8e3}
+
+/* ── DESKTOP (admin) ──────────────────────────── */
+.mac{width:100%;max-width:960px;border-radius:12px;overflow:hidden;
+  background:linear-gradient(160deg,#1b1e28,#0b0c12);border:1px solid rgba(255,255,255,.07);
+  box-shadow:0 34px 80px rgba(0,0,0,.65)}
+.macbar{display:flex;align-items:center;gap:7px;padding:11px 14px;background:#161923;border-bottom:1px solid rgba(255,255,255,.06)}
+.macbar i{width:10px;height:10px;border-radius:50%;display:block}
+.macurl{margin-left:14px;font-family:var(--mono);font-size:10.5px;color:#6c7385;background:#0d0f15;
+  padding:5px 12px;border-radius:5px;flex:1;max-width:340px}
+.macbody{padding:0;background:#0a0b10;min-height:430px;display:flex}
+
+.side{width:190px;flex:none;border-right:1px solid rgba(255,255,255,.07);padding:20px 14px;background:#0c0d13}
+.sidebrand{font-family:var(--display);font-size:14px;letter-spacing:.05em;text-transform:uppercase;
+  transform:skewX(-7deg);color:var(--ice);margin-bottom:22px}
+.navitem{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ash);
+  padding:9px 10px;border-radius:6px;margin-bottom:2px}
+.navitem.on{background:rgba(127,227,255,.09);color:var(--ice);border-left:2px solid var(--ice)}
+.main{flex:1;padding:22px 26px;min-width:0}
+.mhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;
+  border-bottom:1px solid rgba(255,255,255,.07);padding-bottom:14px}
+.mhead h4{font-family:var(--sans);font-size:19px;font-weight:700;color:#fff}
+.mhead .sub{font-family:var(--mono);font-size:10px;color:var(--ash);letter-spacing:.13em;text-transform:uppercase;margin-top:3px}
+.badge{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;padding:5px 10px;border-radius:3px}
+.badge.draft{background:rgba(255,180,60,.12);color:#ffb43c;border:1px solid rgba(255,180,60,.3)}
+.badge.live{background:rgba(61,255,160,.1);color:#3dffa0;border:1px solid rgba(61,255,160,.3)}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field{margin-bottom:13px}
+.flabel{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ice);margin-bottom:6px}
+.finput{background:#101219;border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:10px 12px;
+  font-size:13.5px;color:#dfe3ec;min-height:38px}
+.finput.tall{min-height:78px;line-height:1.5;color:#aeb4c4;font-size:13px}
+.finput.empty{color:#4d5364}
+.dayrow{display:grid;grid-template-columns:34px 1fr 1fr;gap:10px;align-items:center;padding:9px 0;
+  border-bottom:1px solid rgba(255,255,255,.06)}
+.dayrow .n{font-family:var(--mono);font-size:10px;color:var(--hot)}
+.dayrow .v{font-size:12.5px;color:#c0c6d4;background:#101219;border:1px solid rgba(255,255,255,.07);
+  border-radius:5px;padding:7px 9px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.abtn{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  padding:10px 18px;border-radius:6px;font-weight:600}
+.abtn.pri{background:linear-gradient(180deg,#5478ff,#3355e8);color:#fff;box-shadow:0 0 20px rgba(75,109,255,.35)}
+.abtn.gho{border:1px solid var(--line);color:var(--ice)}
+.abtn.pink{background:linear-gradient(180deg,#ff4d97,#e01c72);color:#fff}
+.autosave{font-family:var(--mono);font-size:9.5px;color:#3dffa0;letter-spacing:.14em;text-transform:uppercase}
+
+.paste{background:#101219;border:1px dashed rgba(127,227,255,.3);border-radius:9px;padding:16px;
+  font-family:var(--mono);font-size:11px;line-height:1.7;color:#7e8598;min-height:190px}
+.paste b{color:var(--ice);font-weight:500}
+.arrowcol{display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--hot)}
+.outfield{background:#101219;border:1px solid rgba(61,255,160,.28);border-radius:7px;padding:9px 11px;
+  font-size:12.5px;color:#dfe3ec;margin-bottom:9px}
+.outfield .ol{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#3dffa0;margin-bottom:4px}
+
+.bignum{font-family:var(--display);font-size:64px;color:var(--ice);line-height:.9;
+  text-shadow:0 0 30px rgba(127,227,255,.35)}
+.numlabel{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ash);margin-top:8px}
+.sharebox{background:#101219;border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:14px;
+  font-size:13.5px;line-height:1.6;color:#cdd3e0}
+.sharebox a{color:var(--ice)}
+
+.loginwrap{flex:1;display:flex;align-items:center;justify-content:center;padding:40px}
+.loginbox{width:320px}
+
+/* ── closing ──────────────────────────────────── */
+.decisions{border:1px solid var(--line);padding:34px;margin:20px 0 40px;background:var(--wall)}
+.decisions h3{font-family:var(--display);font-size:26px;text-transform:uppercase;transform:skewX(-7deg);
+  transform-origin:left;margin-bottom:8px}
+.decisions>p{font-size:15px;color:#a8aebd;margin-bottom:24px;max-width:640px}
+.dlist{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px}
+.ditem{border-top:1px solid var(--line);padding-top:14px}
+.ditem b{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--hot);display:block;margin-bottom:7px}
+.ditem p{font-size:14px;color:#aeb4c4;line-height:1.5}
+footer{padding:40px 0 70px;font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:#4d5364;text-align:center}
+
+@media (max-width:940px){
+  .row{grid-template-columns:1fr;gap:28px;justify-items:center}
+  .note{max-width:620px}
+  .premise{grid-template-columns:1fr 1fr}
+  .wrap{padding:0 20px}
+  .fgrid{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<!-- ══ MASTHEAD ══ -->
+<header class="mast">
+  <div class="eyebrow"><span class="dot"></span>Screen designs · v1 scope · for review</div>
+  <h1 class="title">Anthem<br>Students<span>The Week Hub</span></h1>
+  <p class="deck">One link, sent every Thursday, that carries a student through the week between Wednesday nights. <strong>Not an app to download — a page to open.</strong> Below is every screen in v1, plus the leader tools behind it.</p>
+  <div class="metaRow">
+    <span class="chip">No student login</span>
+    <span class="chip">Mobile first</span>
+    <span class="chip">3-day path</span>
+    <span class="chip">Publishes in ~15 min/week</span>
+  </div>
+</header>
+
+<section class="premise">
+  <div><h4>The problem</h4><p>Wednesday night lands, then six days of nothing. Students have no structure between meetings and nowhere to go when they want one.</p></div>
+  <div><h4>The bet</h4><p>Students won't install an app. They will tap a link in the group chat if it opens instantly and asks for five minutes, not thirty.</p></div>
+  <div><h4>The guardrail</h4><p>Three days, not five. A student who finishes 3 of 3 comes back. A student who finishes 2 of 5 quits.</p></div>
+  <div><h4>The leader test</h4><p>If publishing a week takes longer than a coffee break, it stops happening by week six. The admin tool is built around that constraint.</p></div>
+</section>
+
+<!-- ══ 01 STUDENT ══ -->
+<section class="sect">
+  <div class="sectHead">
+    <span class="sectNum">01</span>
+    <h2>The Student Screens</h2>
+    <span class="sectNote">No account · anthemstudents.com</span>
+  </div>
+  <p class="sectIntro">The visual rule throughout: <strong style="color:#e9ebf2">the chrome is retro, the content is clean.</strong> Headers, buttons, and labels carry the VHS treatment — scanlines, glow, chromatic split. Scripture and journal space sit on flat, high-contrast cards above that layer so a twelve-year-old can actually read them on a cracked phone in a car.</p>
+
+  <!-- Home -->
+  <div class="row">
+    <div class="phone"><div class="scr">
+      <div class="statusbar"><b>7:41</b><span>▮▮▮ ⌁ 82%</span></div>
+      <div class="appbar">
+        <div class="wordmark">Anthem Students</div>
+        <div class="burger"><i></i><i></i><i></i></div>
+      </div>
+      <div class="body">
+        <div class="tape">Series: Pressure · Week 2 of 4</div>
+        <div class="rule"></div>
+        <div class="kicker">This week's big idea</div>
+        <div class="bigidea">You were never the one holding it together.</div>
+        <div style="height:14px"></div>
+        <div class="versecard">
+          <div class="versetext">"Casting all your worries on him, because he cares for you."</div>
+          <div class="verseref">1 Peter 5:7 · Tap to practice →</div>
+        </div>
+        <div class="dashrule"></div>
+        <div class="pathhead">
+          <span class="tape" style="color:var(--ice)">Your week</span>
+          <span class="dots"><i class="on"></i><i></i><i></i></span>
+        </div>
+        <div class="daycard done">
+          <span class="daynum">DAY 1</span>
+          <div><div class="daytitle">The Handoff</div><div class="daysub">Done · 1 Peter 5:6–7</div></div>
+          <span class="chev" style="color:#3dffa0">✓</span>
+        </div>
+        <div class="daycard next">
+          <span class="daynum">DAY 2</span>
+          <div><div class="daytitle">Weak Is Not Broken</div><div class="daysub">4 min · 2 Corinthians 12</div></div>
+          <span class="chev">›</span>
+        </div>
+        <div class="daycard">
+          <span class="daynum">DAY 3</span>
+          <div><div class="daytitle">The Trade</div><div class="daysub">4 min · Matthew 11</div></div>
+          <span class="chev">›</span>
+        </div>
+        <div style="height:6px"></div>
+        <div class="collapse"><span>What we talked about</span><span class="chev">⌄</span></div>
+        <div class="linkrow">For parents →</div>
+      </div>
+    </div></div>
+    <div class="note">
+      <div class="noteTag">Screen 01 · Home</div>
+      <h3>This Week</h3>
+      <div class="route">/</div>
+      <p>The whole product lives on this screen. A student taps the Thursday link and lands here — no sign-in, no onboarding, no tour. Everything that matters is above the fold.</p>
+      <ul>
+        <li><b>Big idea</b> — one sentence, set large. This is the thing you want stuck in their head all week, and it's the first thing they read.</li>
+        <li><b>Memory verse card</b> — tappable, opens the practice screen.</li>
+        <li><b>The path</b> — three day cards with completion dots. Progress is visible the second the page loads, which is the whole reason they come back.</li>
+        <li><b>Recap</b> — collapsed by default. It's a safety net for the student who missed Wednesday, not the main event.</li>
+        <li><b>Parent link</b> — quiet, at the bottom. Parents mostly arrive by their own link.</li>
+      </ul>
+      <div class="why"><span>Why it's built this way</span><p>Every element competing for the top of the screen loses to the big idea. If a student only ever reads one line all week, this design makes sure it's the right line.</p></div>
+    </div>
+  </div>
+
+  <!-- Day -->
+  <div class="row">
+    <div class="phone"><div class="scr">
+      <div class="statusbar"><b>7:43</b><span>▮▮▮ ⌁ 82%</span></div>
+      <div class="appbar">
+        <div class="backbtn">← This week</div>
+        <div class="stepmark">Day 2 / 3</div>
+      </div>
+      <div class="body">
+        <div class="bigidea" style="font-size:22px">Weak Is Not Broken</div>
+        <div style="height:13px"></div>
+        <div class="passage">
+          <div class="pref">2 Corinthians 12:9 · WEB</div>
+          <p>"My grace is sufficient for you, for my power is made perfect in weakness."</p>
+        </div>
+        <div class="thought">Paul asked God three times to take something hard away. God said no — and then told him why. The weak spot wasn't the problem. It was the place where God showed up most obviously.</div>
+        <div class="dashrule"></div>
+        <div class="question">Where are you pretending to be fine?</div>
+        <div class="textarea">honestly probably with my parents. i say im good every single day even when im not because i dont want the whole conversation<span class="caret"></span></div>
+        <div class="saved">◉ Saved on this phone</div>
+        <div style="height:14px"></div>
+        <div class="btn primary">I'm done →</div>
+      </div>
+    </div></div>
+    <div class="note">
+      <div class="noteTag">Screen 02 · Daily</div>
+      <h3>A Day On The Path</h3>
+      <div class="route">/day/1 · /day/2 · /day/3</div>
+      <p>One screen, one job. Read a short passage, hear one honest thought, answer one question. Four minutes, not a quiet time curriculum.</p>
+      <ul>
+        <li><b>Full passage on screen.</b> Never ask a middle schooler to go find a Bible — that's the step where they close the tab.</li>
+        <li><b>One question. Not three.</b> Three questions reads like homework and gets zero answers.</li>
+        <li><b>Journal saves to their phone only.</b> Nothing is uploaded, nothing is readable by leaders. That's a promise we make on the screen, and it's the reason answers will be honest.</li>
+        <li><b>Scanlines dial down here.</b> Nobody types something vulnerable through a CRT filter.</li>
+        <li><b>"I'm done"</b> returns them home with a dot filled in. The reward is immediate and visible.</li>
+      </ul>
+      <div class="why"><span>Why it's built this way</span><p>The single biggest predictor of a student finishing is how much the screen asks of them at once. One passage, one thought, one question is the most we can ask and still get day three.</p></div>
+    </div>
+  </div>
+
+  <!-- Verse -->
+  <div class="row">
+    <div class="phone"><div class="scr">
+      <div class="statusbar"><b>7:45</b><span>▮▮▮ ⌁ 81%</span></div>
+      <div class="appbar">
+        <div class="backbtn">← This week</div>
+        <div class="stepmark">Memory verse</div>
+      </div>
+      <div class="body">
+        <div class="tape">Level 2 of 4 · Fill the gaps</div>
+        <div class="levelbar"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+        <div class="versecard" style="padding:20px 17px">
+          <div class="versetext" style="font-size:18px;line-height:1.6">
+            "Casting all your <span class="blank"></span> on him, because he <span class="blank"></span> for you."
+          </div>
+          <div class="verseref">1 Peter 5:7</div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="card" style="text-align:center">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--ash);text-transform:uppercase">Tap a blank to reveal it</div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="stat"><b>6</b><span>Day streak</span></div>
+        <div style="height:4px"></div>
+        <div class="btn pink">Hide more words</div>
+        <div style="height:9px"></div>
+        <div class="btn ghost">Say it from memory</div>
+      </div>
+    </div></div>
+    <div class="note">
+      <div class="noteTag">Screen 03 · Practice</div>
+      <h3>Verse Trainer</h3>
+      <div class="route">/verse</div>
+      <p>The verse blanks out progressively across four levels — full text, a few words gone, most words gone, reference only. Tap any blank to peek. Level up when you're ready.</p>
+      <ul>
+        <li><b>This is the repeat-open screen.</b> Everything else is read once. This one gets tapped Friday in a car line and Sunday before service.</li>
+        <li><b>Streak lives here, not on the home screen</b> — tied to practice, where daily repetition actually makes sense.</li>
+        <li>Works as the small-group opener on Wednesday: put it on the projector at level 3 and let the room fill it in.</li>
+      </ul>
+      <div class="why"><span>Why it's built this way</span><p>It's the only screen in v1 that behaves like a game, and that's deliberate — memorization is the one thing here that genuinely rewards repetition. Build it well and it carries the whole product's return rate.</p></div>
+    </div>
+  </div>
+
+  <!-- Menu -->
+  <div class="row">
+    <div class="phone"><div class="scr">
+      <div class="statusbar"><b>7:46</b><span>▮▮▮ ⌁ 81%</span></div>
+      <div class="menu">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+          <div class="wordmark">Anthem Students</div>
+          <div style="color:var(--ice);font-size:19px">✕</div>
+        </div>
+        <div class="menuitem active">This Week<small>Pressure · Week 2</small></div>
+        <div class="menuitem">Memory Verse<small>1 Peter 5:7 · Level 2</small></div>
+        <div class="menuitem">Events<small>3 coming up</small></div>
+        <div class="menuitem">Past Weeks<small>11 in the archive</small></div>
+        <div class="menuitem">For Parents<small>This week's guide</small></div>
+        <div class="toggle">
+          <span>Reduce screen effects</span>
+          <div class="sw"></div>
+        </div>
+      </div>
+      <div class="body"></div>
+    </div></div>
+    <div class="note">
+      <div class="noteTag">Screen 04 · Navigation</div>
+      <h3>The Menu</h3>
+      <div class="route">Overlay · all screens</div>
+      <p>Five destinations. That's the ceiling — the moment this list needs scrolling, the product has lost its shape.</p>
+      <ul>
+        <li>Each item carries a <b>live subtitle</b> (3 coming up, Level 2, 11 in the archive) so the menu itself tells you what's worth tapping.</li>
+        <li><b>"Reduce screen effects" is not decoration.</b> Scanlines and glow trigger headaches for some students, and this is an accessibility obligation as much as a preference. It also respects the phone's own reduced-motion setting automatically.</li>
+      </ul>
+      <div class="why"><span>Why it's built this way</span><p>A hamburger is where features go to be forgotten. Anything genuinely important gets pulled onto the home screen instead — which is exactly why the daily path isn't in here.</p></div>
+    </div>
+  </div>
+
+  <!-- Events -->
+  <div class="row">
+    <div class="phone"><div class="scr">
+      <div class="statusbar"><b>7:47</b><span>▮▮▮ ⌁ 81%</span></div>
+      <div class="appbar">
+        <div class="wordmark" style="font-size:14px">Events</div>
+        <div class="burger"><i></i><i></i><i></i></div>
+      </div>
+      <div class="body">
+        <div class="tape">Next 60 days</div>
+        <div class="rule"></div>
+        <div class="evt">
+          <div class="evtdate"><b>27</b><span>Aug</span></div>
+          <div><h5>Fall Kickoff Night</h5><p>6:30 PM · Main Room<br>Bring a friend · free tacos</p></div>
+        </div>
+        <div class="evt">
+          <div class="evtdate"><b>12</b><span>Sep</span></div>
+          <div><h5>Parent + Student Night</h5><p>6:30 PM · Main Room<br>Come together, leave with a plan</p></div>
+        </div>
+        <div class="evt">
+          <div class="evtdate"><b>03</b><span>Oct</span></div>
+          <div><h5>Fall Retreat</h5><p>Fri–Sun · Oak Glen<br>$149 · Deposit due Sep 12</p></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="btn primary">Sign up for the retreat</div>
+        <div style="height:9px"></div>
+        <div class="card" style="text-align:center">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--ash);text-transform:uppercase">Add all to your calendar</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="note">
+      <div class="noteTag">Screen 05 · Events</div>
+      <h3>What's Coming Up</h3>
+      <div class="route">/events</div>
+      <p>A clean list of everything on the calendar, with the one detail that actually matters on each card: cost, deadline, what to bring.</p>
+      <ul>
+        <li><b>Sign-ups link out</b> to whatever registration you already use. This screen doesn't take payments and shouldn't try to.</li>
+        <li><b>Deadlines are the point.</b> "Deposit due Sep 12" in front of a student in September is worth more than an announcement slide in August.</li>
+        <li>Doubles as the answer to every "wait, when is that?" text a leader gets.</li>
+      </ul>
+      <div class="why"><span>Why it's built this way</span><p>Scope honesty: this screen only earns its place because it's cheap to build on the same content model. If v1 has to shrink, this is the first thing to cut — the weekly path is the product.</p></div>
+    </div>
+  </div>
+
+  <!-- Archive -->
+  <div class="row">
+    <div class="phone"><div class="scr">
+      <div class="statusbar"><b>7:48</b><span>▮▮▮ ⌁ 80%</span></div>
+      <div class="appbar">
+        <div class="wordmark" style="font-size:14px">Past Weeks</div>
+        <div class="burger"><i></i><i></i><i></i></div>
+      </div>
+      <div class="body">
+        <div class="tape">Series: Pressure</div>
+        <div class="rule"></div>
+        <div class="arch"><span class="archnum">W2</span><div><h5>When You Can't Hold It Together</h5><p>1 Peter 5 · Aug 13 · 3 of 3 done</p></div><span class="chev" style="margin-left:auto;color:#3dffa0">✓</span></div>
+        <div class="arch"><span class="archnum">W1</span><div><h5>Everybody's Carrying Something</h5><p>Psalm 42 · Aug 6 · 1 of 3 done</p></div><span class="chev" style="margin-left:auto">›</span></div>
+        <div style="height:18px"></div>
+        <div class="tape">Series: Who Jesus Says You Are</div>
+        <div class="rule"></div>
+        <div class="arch"><span class="archnum">W4</span><div><h5>Chosen, Not Lucky</h5><p>Ephesians 1 · Jul 30</p></div><span class="chev" style="margin-left:auto">›</span></div>
+        <div class="arch"><span class="archnum">W3</span><div><h5>The Name You Answer To</h5><p>John 1 · Jul 23</p></div><span class="chev" style="margin-left:auto">›</span></div>
+        <div class="arch"><span class="archnum">W2</span><div><h5>Found On Purpose</h5><p>Luke 15 · Jul 16</p></div><span class="chev" style="margin-left:auto">›</span></div>
+      </div>
+    </div></div>
+    <div class="note">
+      <div class="noteTag">Screen 06 · Archive</div>
+      <h3>Past Weeks</h3>
+      <div class="route">/archive</div>
+      <p>Every published week, grouped by series, staying live forever. Old weeks open exactly as they did when they were current.</p>
+      <ul>
+        <li><b>For the student who was gone</b> — camp, a game, a rough month — and wants to catch up without asking anyone.</li>
+        <li><b>Their completion history stays visible</b>, which quietly turns eleven weeks of scattered effort into something that looks like a track record.</li>
+        <li><b>It's the leader's library too.</b> Every series you've ever taught, searchable, with the verse and the big idea attached.</li>
+      </ul>
+      <div class="why"><span>Why it's built this way</span><p>This screen costs almost nothing to build — the weeks are already in the database — and it's the only thing that makes the product feel bigger the longer it runs.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 02 PARENT ══ -->
+<section class="sect">
+  <div class="sectHead">
+    <span class="sectNum">02</span>
+    <h2>The Parent Screen</h2>
+    <span class="sectNote">Separate link · separate send</span>
+  </div>
+  <p class="sectIntro">Sent to parents on its own, in its own channel, with its own tone. Same content underneath, different job on top.</p>
+
+  <div class="row">
+    <div class="phone"><div class="scr parentwrap">
+      <div class="statusbar"><b>7:52</b><span>▮▮▮ ⌁ 79%</span></div>
+      <div class="appbar">
+        <div>
+          <div class="parentsub">Parent guide</div>
+          <div class="parenthead">Week of Aug 13</div>
+        </div>
+        <div class="burger" style="opacity:.55"><i style="background:#c9a961"></i><i style="background:#c9a961"></i><i style="background:#c9a961"></i></div>
+      </div>
+      <div class="body">
+        <div class="card">
+          <div class="parentsub" style="margin-bottom:7px">What we covered</div>
+          <p style="font-size:14px;line-height:1.55;color:#d3d8e3">We looked at 1 Peter 5 and talked about the pressure to keep it together — at school, at home, online — and what it means to hand that weight to God instead of managing it alone.</p>
+        </div>
+        <div style="height:11px"></div>
+        <div class="callout">
+          <div class="clabel">⚑ Heads up</div>
+          <p>We named anxiety directly tonight. Some students may bring it up this week. If yours does, you don't need a perfect answer — just don't change the subject.</p>
+        </div>
+        <div style="height:13px"></div>
+        <div class="parentsub">Three ways in</div>
+        <div class="starter"><b>01</b><p>What's something everyone assumes you're fine about?</p></div>
+        <div class="starter"><b>02</b><p>When you're stressed, do you get loud or go quiet?</p></div>
+        <div class="starter"><b>03</b><p>What's one thing I could take off your plate this week?</p></div>
+        <div style="height:13px"></div>
+        <div class="card" style="border-color:rgba(201,169,97,.28)">
+          <div class="parentsub" style="margin-bottom:6px">Their verse this week</div>
+          <p style="font-size:14.5px;color:#fff;font-weight:500;line-height:1.45">"Casting all your worries on him, because he cares for you."</p>
+          <p style="font-family:var(--mono);font-size:10px;color:#c9a961;margin-top:7px;letter-spacing:.14em">1 PETER 5:7</p>
+        </div>
+      </div>
+    </div></div>
+    <div class="note">
+      <div class="noteTag">Screen 07 · Parents</div>
+      <h3>Parent Guide</h3>
+      <div class="route">/parents</div>
+      <p>What we covered, one heads-up, three conversation starters, and the verse their kid is memorizing. Under a minute to read.</p>
+      <ul>
+        <li><b>The neon comes off.</b> Warm gold instead of pink, calmer type, no VHS treatment. This audience needs to trust it in four seconds, and a retro filter reads as unserious to a forty-year-old.</li>
+        <li><b>The heads-up block is the differentiator.</b> When a hard topic gets named on a Wednesday, a parent finding out from this page instead of from a blindside is the single most valuable thing the product does.</li>
+        <li><b>Questions are written to survive a car ride</b> — specific, answerable, not "so what did you learn."</li>
+        <li>No login. Parents don't create accounts for church websites.</li>
+      </ul>
+      <div class="why"><span>Why it's built this way</span><p>Be honest about who actually opens links: this page will likely out-engage the student pages, and it's what parents forward to other parents. It's the growth channel, not a bonus feature.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 03 ADMIN ══ -->
+<section class="sect">
+  <div class="sectHead">
+    <span class="sectNum">03</span>
+    <h2>The Leader Tools</h2>
+    <span class="sectNote">Password protected · 1–3 leaders</span>
+  </div>
+  <p class="sectIntro">The design constraint that governs everything back here: <strong style="color:#e9ebf2">publishing a week has to fit in a coffee break.</strong> If it takes an hour, it stops happening around week six and the students learn the site is dead.</p>
+
+  <!-- Login -->
+  <div class="row wide">
+    <div class="mac">
+      <div class="macbar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>
+        <div class="macurl">anthemstudents.com/admin</div></div>
+      <div class="macbody">
+        <div class="loginwrap">
+          <div class="loginbox">
+            <div style="font-family:var(--display);font-size:26px;text-transform:uppercase;transform:skewX(-7deg);color:var(--ice);text-shadow:1.5px 0 0 rgba(255,47,135,.6),-1.5px 0 0 rgba(75,109,255,.5);margin-bottom:5px">Leader Login</div>
+            <div style="font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ash);margin-bottom:26px">Anthem Students Hub</div>
+            <div class="field"><div class="flabel">Email</div><div class="finput">jake@anthemchurch.com</div></div>
+            <div class="field"><div class="flabel">Password</div><div class="finput">••••••••••••</div></div>
+            <div style="height:8px"></div>
+            <div class="abtn pri" style="display:block;text-align:center">Sign in</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--ash);text-align:center;margin-top:16px;letter-spacing:.1em">Forgot password</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="max-width:760px;margin-top:26px">
+      <div class="noteTag">Screen 08 · Admin</div>
+      <h3>Leader Login</h3>
+      <div class="route">/admin</div>
+      <p>Email and password for a handful of leaders. No student accounts exist anywhere in the system, which is the single largest reduction in build cost, privacy risk, and ongoing support burden available to this project.</p>
+      <ul>
+        <li><b>Two roles.</b> Editor can draft; Publisher can push live. On a team this size that's plenty.</li>
+        <li><b>No minor data is ever collected</b> — no names, no emails, no journal entries leaving the phone. Worth stating plainly to leadership; it takes a whole category of child-safety and data-retention questions off the table.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Week editor -->
+  <div class="row wide">
+    <div class="mac">
+      <div class="macbar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>
+        <div class="macurl">anthemstudents.com/admin/week/12</div></div>
+      <div class="macbody">
+        <div class="side">
+          <div class="sidebrand">Anthem Admin</div>
+          <div class="navitem on">This Week</div>
+          <div class="navitem">All Weeks</div>
+          <div class="navitem">Events</div>
+          <div class="navitem">Settings</div>
+          <div style="margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,.07)">
+            <div style="font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--ash);margin-bottom:8px">Goes live</div>
+            <div style="font-size:12.5px;color:#dfe3ec">Thu, Aug 14 · 7:00 AM</div>
+          </div>
+        </div>
+        <div class="main">
+          <div class="mhead">
+            <div>
+              <h4>Pressure · Week 2</h4>
+              <div class="sub">Last edited 2 minutes ago</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <span class="autosave">◉ Saved</span>
+              <span class="badge draft">Draft</span>
+            </div>
+          </div>
+          <div class="fgrid">
+            <div class="field"><div class="flabel">Week title</div><div class="finput">When You Can't Hold It Together</div></div>
+            <div class="field"><div class="flabel">Big idea — one sentence</div><div class="finput">You were never the one holding it together.</div></div>
+          </div>
+          <div class="fgrid">
+            <div class="field"><div class="flabel">Verse reference</div><div class="finput">1 Peter 5:7</div></div>
+            <div class="field"><div class="flabel">Translation</div><div class="finput">WEB ⌄</div></div>
+          </div>
+          <div class="field"><div class="flabel">Verse text</div><div class="finput">Casting all your worries on him, because he cares for you.</div></div>
+          <div class="field"><div class="flabel">Recap — what we talked about</div><div class="finput tall">We looked at 1 Peter 5 and talked about the pressure to keep it together — at school, at home, online — and what it means to hand that weight to God instead of…</div></div>
+          <div class="field">
+            <div class="flabel">The three days</div>
+            <div class="dayrow"><span class="n">D1</span><span class="v">The Handoff</span><span class="v">1 Peter 5:6–7 · Where do you carry it alone?</span></div>
+            <div class="dayrow"><span class="n">D2</span><span class="v">Weak Is Not Broken</span><span class="v">2 Cor 12:9 · Where are you pretending to be fine?</span></div>
+            <div class="dayrow"><span class="n">D3</span><span class="v">The Trade</span><span class="v">Matthew 11:28 · What would rest look like?</span></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:18px;align-items:center">
+            <span class="abtn pri">Publish week</span>
+            <span class="abtn gho">Preview as student</span>
+            <span class="abtn gho">Duplicate last week</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="max-width:760px;margin-top:26px">
+      <div class="noteTag">Screen 09 · Admin</div>
+      <h3>Week Editor</h3>
+      <div class="route">/admin/week/:id</div>
+      <p>Every field for one week on one screen. No tabs, no wizard, no save button to forget — it autosaves as you type and stays a draft until someone deliberately publishes it.</p>
+      <ul>
+        <li><b>Draft / Live is the only state that matters.</b> A half-written week can never be visible to a student, which means you can edit Thursday morning without fear.</li>
+        <li><b>Scheduled publish</b> — write it Wednesday night while it's fresh, let it go live Thursday at 7 AM on its own.</li>
+        <li><b>"Duplicate last week"</b> carries the series, formatting, and structure forward so you're editing rather than starting from a blank page. Blank pages are why weekly content dies.</li>
+        <li><b>"Preview as student"</b> shows the real phone screen before anything goes out.</li>
+      </ul>
+      <div class="why"><span>Why it's built this way</span><p>Every field here maps one-to-one to something visible on the student screens. Nothing is collected "for later." A field that doesn't render is a field someone has to fill in for no reason, every week, forever.</p></div>
+    </div>
+  </div>
+
+  <!-- Paste from notes -->
+  <div class="row wide">
+    <div class="mac">
+      <div class="macbar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>
+        <div class="macurl">anthemstudents.com/admin/week/new</div></div>
+      <div class="macbody">
+        <div class="side">
+          <div class="sidebrand">Anthem Admin</div>
+          <div class="navitem on">This Week</div>
+          <div class="navitem">All Weeks</div>
+          <div class="navitem">Events</div>
+          <div class="navitem">Settings</div>
+        </div>
+        <div class="main">
+          <div class="mhead">
+            <div><h4>Start from your lesson notes</h4><div class="sub">Paste · review · edit · publish</div></div>
+            <span class="abtn gho">Skip, start blank</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:12px">
+            <div>
+              <div class="flabel">Paste Wednesday's notes</div>
+              <div class="paste">
+                <b># PRESSURE — Week 2</b><br>
+                <b>## Name It</b><br>
+                Everybody's holding something. Nobody says it.<br><br>
+                <b>## Key Line</b><br>
+                <b>You were never the one holding it together.</b><br><br>
+                <b>## Teaching Points</b><br>
+                — 1 Peter 5:6–7, humble yourselves<br>
+                — "casting" is a violent word, a throw<br>
+                — pride and anxiety are the same root<br><br>
+                <b>## Application</b><br>
+                — name one thing you're carrying alone…
+              </div>
+            </div>
+            <div class="arrowcol">→</div>
+            <div>
+              <div class="flabel">What we pulled out</div>
+              <div class="outfield"><div class="ol">Week title</div>When You Can't Hold It Together</div>
+              <div class="outfield"><div class="ol">Big idea</div>You were never the one holding it together.</div>
+              <div class="outfield"><div class="ol">Verse</div>1 Peter 5:7</div>
+              <div class="outfield"><div class="ol">Recap</div>We looked at 1 Peter 5 and talked about the pressure to keep it…</div>
+              <div class="outfield"><div class="ol">Day prompts · 3 drafted</div>The Handoff / Weak Is Not Broken / The Trade</div>
+              <div style="display:flex;gap:9px;margin-top:14px">
+                <span class="abtn pri">Use these &amp; edit</span>
+                <span class="abtn gho">Try again</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="max-width:760px;margin-top:26px">
+      <div class="noteTag">Screen 10 · Admin</div>
+      <h3>Start From Your Notes</h3>
+      <div class="route">/admin/week/new</div>
+      <p>Paste the lesson notes that already exist for Wednesday night, and the week comes back roughly 80% filled in. You edit and publish rather than write from scratch.</p>
+      <ul>
+        <li><b>This is the feature that decides whether the product survives.</b> Four original pieces of content a week, forever, is not a workload anyone sustains on top of a full ministry job. Deriving from notes that already exist is.</li>
+        <li><b>It never publishes on its own.</b> Everything lands in the editor as a draft for a human to fix. The tool drafts; the leader decides.</li>
+        <li>Skippable — a leader who'd rather type it fresh clicks past it.</li>
+      </ul>
+      <div class="why"><span>Why it's built this way</span><p>Most church tools die of content starvation, not bad design. This screen attacks the actual failure mode instead of adding another one.</p></div>
+    </div>
+  </div>
+
+  <!-- Publish + send -->
+  <div class="row wide">
+    <div class="mac">
+      <div class="macbar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>
+        <div class="macurl">anthemstudents.com/admin/week/12/published</div></div>
+      <div class="macbody">
+        <div class="side">
+          <div class="sidebrand">Anthem Admin</div>
+          <div class="navitem on">This Week</div>
+          <div class="navitem">All Weeks</div>
+          <div class="navitem">Events</div>
+          <div class="navitem">Settings</div>
+        </div>
+        <div class="main">
+          <div class="mhead">
+            <div><h4>Pressure · Week 2 is live</h4><div class="sub">Published Thu, Aug 14 at 7:00 AM</div></div>
+            <span class="badge live">● Live</span>
+          </div>
+          <div class="fgrid" style="gap:22px">
+            <div>
+              <div class="flabel">Send this to the group chat</div>
+              <div class="sharebox">
+                Ok so tonight got real. This week's stuff is up — 3 days, like 4 minutes each.<br><br>
+                <a>anthemstudents.com</a>
+              </div>
+              <div style="display:flex;gap:9px;margin-top:11px">
+                <span class="abtn pri">Copy message</span>
+                <span class="abtn gho">Copy parent link</span>
+              </div>
+              <div style="font-family:var(--mono);font-size:9.5px;color:var(--ash);letter-spacing:.1em;margin-top:12px;line-height:1.7">
+                PARENT LINK · anthemstudents.com/parents<br>
+                QR CODE FOR THE PROJECTOR · download
+              </div>
+            </div>
+            <div>
+              <div class="flabel">Did anyone open it</div>
+              <div style="padding:14px 0">
+                <div class="bignum">64</div>
+                <div class="numlabel">Opens this week</div>
+              </div>
+              <div style="border-top:1px solid rgba(255,255,255,.08);padding-top:13px;margin-top:6px">
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;color:#aeb4c4;margin-bottom:7px"><span>Last week</span><span style="color:#3dffa0">48</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;color:#aeb4c4;margin-bottom:7px"><span>Parent guide opens</span><span style="color:#dfe3ec">31</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;color:#aeb4c4"><span>Reached day 3</span><span style="color:#dfe3ec">19</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="max-width:760px;margin-top:26px">
+      <div class="noteTag">Screen 11 · Admin</div>
+      <h3>Publish &amp; Send</h3>
+      <div class="route">/admin/week/:id/published</div>
+      <p>Publishing isn't finished when the page goes live — it's finished when the link is in the group chat. This screen closes that gap.</p>
+      <ul>
+        <li><b>The message is pre-written and one click from your clipboard</b>, editable before sending. Removing friction from the send is worth more than any feature on the student side.</li>
+        <li><b>QR code</b> for the projector on Wednesday night — how new students find it the first time.</li>
+        <li><b>Four numbers. Not a dashboard.</b> Opens, last week's opens, parent opens, and how many reached day three.</li>
+      </ul>
+      <div class="why"><span>Why it's built this way</span><p>"Reached day 3" is the honest metric — it's the one that says whether this is changing anyone's week or just getting clicked. Put it in front of leadership monthly. If it stays near zero after six weeks, the format is wrong and we change it rather than adding features.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CLOSING ══ -->
+<section class="sect">
+  <div class="sectHead">
+    <span class="sectNum">04</span>
+    <h2>Decide Before Build</h2>
+    <span class="sectNote">Open questions</span>
+  </div>
+  <div class="decisions">
+    <h3>Six things that change the build</h3>
+    <p>These are cheap to settle in a meeting and expensive to change once code exists. Everything above is designed to hold steady regardless of how they land — but the answers set the schedule.</p>
+    <div class="dlist">
+      <div class="ditem"><b>01 · Distribution</b><p>What channel reliably reaches students on a Thursday? The site is worthless without a habit of sending it. This is the highest-risk item and it isn't a design problem.</p></div>
+      <div class="ditem"><b>02 · Translation</b><p>Which translation do students use, and do we have the licensing to display full passages? Public-domain fallback works if not.</p></div>
+      <div class="ditem"><b>03 · Who publishes</b><p>Is this one person's job or a rotation? A rotation needs the notes-paste feature more, not less.</p></div>
+      <div class="ditem"><b>04 · Domain</b><p>Its own short domain, or a path on the church site? Short and typo-proof matters more than being on-brand.</p></div>
+      <div class="ditem"><b>05 · Journal storage</b><p>Device-only is assumed here. It's safer, cheaper, and more honest. Changing that means accounts, consent, and minor-data policy.</p></div>
+      <div class="ditem"><b>06 · The kill signal</b><p>Agree now on the number that means this isn't working, and the date we check it. Six weeks, "reached day 3." Deciding that in advance is what keeps it from becoming a zombie.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>Anthem Students Hub · Screen designs v1 · Aug 2026</footer>
+</div>
