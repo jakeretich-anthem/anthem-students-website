@@ -127,6 +127,9 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
   padding: calc(env(safe-area-inset-top, 0px) + 16px) 18px 14px;
   position: relative;
   z-index: 3;
@@ -536,6 +539,14 @@ button {
   opacity: 0;
   pointer-events: none;
 }
+.menu-inner {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+}
 .menu-head {
   display: flex;
   justify-content: space-between;
@@ -772,9 +783,137 @@ button {
   color: #d3d8e3;
 }
 
-@media (min-width: 640px) {
+/* ── desktop / wide viewport ───────────────────────
+   Mobile is the priority; this just keeps the browser from looking
+   like a phone screenshot stranded in a huge black window. Same
+   layout, a slightly roomier column and type scale, and real hover
+   feedback for a mouse. */
+@media (min-width: 820px) {
+  .appbar,
   .screen-body {
-    padding-left: 0;
-    padding-right: 0;
+    max-width: 680px;
+  }
+  .wordmark {
+    font-size: 19px;
+  }
+  .bigidea {
+    font-size: 32px;
+  }
+  .kicker {
+    margin-bottom: 11px;
+  }
+  .versecard {
+    padding: 20px 22px;
+  }
+  .versetext {
+    font-size: 19px;
+  }
+  .card {
+    padding: 20px;
+  }
+  .daycard {
+    padding: 17px 18px;
+  }
+  .daytitle {
+    font-size: 16px;
+  }
+  .collapse {
+    padding: 18px;
+  }
+  .passage {
+    padding: 20px 22px;
+  }
+  .passage p {
+    font-size: 19px;
+  }
+  .thought {
+    font-size: 16px;
+  }
+  .question {
+    font-size: 21px;
+  }
+  .btn {
+    padding: 16px;
+    font-size: 13px;
+  }
+  .evt,
+  .arch {
+    padding: 17px;
+  }
+  .arch {
+    padding: 15px 4px;
+  }
+  .arch h5 {
+    font-size: 15px;
+  }
+  .evt h5 {
+    font-size: 16px;
+  }
+  .stat b {
+    font-size: 48px;
+  }
+  .parenthead {
+    font-size: 25px;
+  }
+  .callout,
+  .card.lift {
+    padding: 18px;
+  }
+  .callout p,
+  .starter p {
+    font-size: 16px;
+  }
+  .menu-inner {
+    max-width: 680px;
+  }
+  .menuitem {
+    font-size: 32px;
+  }
+
+  /* real hover feedback for a mouse, never sticky on touch */
+  @media (hover: hover) and (pointer: fine) {
+    .daycard,
+    .evt,
+    .arch,
+    .versecard,
+    .collapse,
+    a.linkrow,
+    .menuitem {
+      transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+    }
+    .daycard:hover,
+    .evt:hover {
+      border-color: rgba(127, 227, 255, 0.35);
+      transform: translateY(-1px);
+    }
+    .arch:hover {
+      border-color: rgba(127, 227, 255, 0.3);
+    }
+    .versecard:hover {
+      border-color: rgba(255, 47, 135, 0.55);
+      transform: translateY(-1px);
+    }
+    .collapse:hover {
+      border-color: rgba(127, 227, 255, 0.3);
+    }
+    a.linkrow:hover {
+      text-shadow: 0 0 12px var(--glow-ice);
+    }
+    .btn.primary:hover {
+      filter: brightness(1.08);
+    }
+    .btn.ghost:hover {
+      border-color: rgba(127, 227, 255, 0.5);
+      background: rgba(127, 227, 255, 0.09);
+    }
+    .btn.pink:hover {
+      filter: brightness(1.08);
+    }
+    .menuitem:hover {
+      color: var(--ice);
+    }
+    button.burger:hover i {
+      background: #fff;
+    }
   }
 }

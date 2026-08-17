@@ -36,33 +36,35 @@ export default function Menu({ open, onClose }: { open: boolean; onClose: () => 
 
   return (
     <div className="menu" data-closed={!open} role="dialog" aria-modal="true" aria-label="Menu" aria-hidden={!open}>
-      <div className="menu-head">
-        <div className="wordmark">Anthem Students</div>
-        <button className="menu-close" onClick={onClose} aria-label="Close menu">
-          ✕
-        </button>
-      </div>
-      {items.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          className={`menuitem${pathname === item.href ? " active" : ""}`}
-          onClick={onClose}
-        >
-          {item.label}
-          <small>{item.small}</small>
-        </Link>
-      ))}
-      <div className="toggle">
-        <span>Reduce screen effects</span>
-        <button
-          className="sw"
-          data-on={reduceEffects}
-          role="switch"
-          aria-checked={reduceEffects}
-          aria-label="Reduce screen effects"
-          onClick={toggleReduceEffects}
-        />
+      <div className="menu-inner">
+        <div className="menu-head">
+          <div className="wordmark">Anthem Students</div>
+          <button className="menu-close" onClick={onClose} aria-label="Close menu">
+            ✕
+          </button>
+        </div>
+        {items.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`menuitem${pathname === item.href ? " active" : ""}`}
+            onClick={onClose}
+          >
+            {item.label}
+            <small>{item.small}</small>
+          </Link>
+        ))}
+        <div className="toggle">
+          <span>Reduce screen effects</span>
+          <button
+            className="sw"
+            data-on={reduceEffects}
+            role="switch"
+            aria-checked={reduceEffects}
+            aria-label="Reduce screen effects"
+            onClick={toggleReduceEffects}
+          />
+        </div>
       </div>
     </div>
   );
