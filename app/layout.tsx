@@ -4,6 +4,13 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Anthem Students",
   description: "One link, sent every Thursday, for the week between Wednesday nights.",
+  // iOS ignores the manifest's display mode — these are what make a
+  // home-screen save open chromeless instead of in a Safari tab.
+  appleWebApp: {
+    capable: true,
+    title: "Anthem",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {
@@ -27,6 +34,26 @@ const REDUCE_EFFECTS_INIT = `
 })();
 `;
 
+// Chrome fires beforeinstallprompt once, and often before React has
+// hydrated — so it's caught here and parked on window for the menu's
+// install button to pick up whenever it mounts. Without this the button
+// would miss the event on a cold load and fall back to instructions on a
+// browser that could have installed in one tap.
+const INSTALL_PROMPT_INIT = `
+(function () {
+  window.__anthemInstallPrompt = null;
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    window.__anthemInstallPrompt = e;
+    window.dispatchEvent(new Event("anthem:installable"));
+  });
+  window.addEventListener("appinstalled", function () {
+    window.__anthemInstallPrompt = null;
+    window.dispatchEvent(new Event("anthem:installed"));
+  });
+})();
+`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -38,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
         <script dangerouslySetInnerHTML={{ __html: REDUCE_EFFECTS_INIT }} />
+        <script dangerouslySetInnerHTML={{ __html: INSTALL_PROMPT_INIT }} />
       </head>
       <body>{children}</body>
     </html>

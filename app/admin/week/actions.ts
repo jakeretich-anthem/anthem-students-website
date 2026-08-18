@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "../../../utils/supabase/server";
 import type { NotesDraft } from "../../lib/notesDraft";
@@ -139,4 +140,39 @@ export async function createWeekFromDraft(draft: NotesDraft) {
   if (daysError) throw new Error(daysError.message);
 
   redirect(`/admin/week/${week.id}`);
+}
+
+export type DeleteWeekResult = { ok: true } | { ok: false; error: string };
+
+// Deleting a week takes its three days with it (days.week_id is ON DELETE
+// CASCADE) and blanks the week_id on its analytics rows (ON DELETE SET
+// NULL), so past opens still count toward totals without pointing at a
+// week that no longer exists.
+//
+// Middleware already gates every /admin path, and a server action posts to
+// the path it was rendered on — but this is the one action that destroys
+// content a leader can't get back, so it re-checks the session itself
+// rather than inheriting the guarantee.
+export async function deleteWeek(id: number): Promise<DeleteWeekResult> {
+  if (!Number.isInteger(id)) return { ok: false, error: "That week no longer exists." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You're signed out — sign in again and retry." };
+
+  const { data, error } = await supabase.from("weeks").delete().eq("id", id).select("id");
+  if (error) return { ok: false, error: error.message };
+  // RLS refusals come back as zero rows deleted rather than an error, so a
+  // silent no-op is reported instead of shown as a success.
+  if (!data || data.length === 0) return { ok: false, error: "That week couldn't be deleted — reload and try again." };
+
+  // A deleted week may have been the live one, which changes what every
+  // student-facing page renders.
+  revalidatePath("/admin/weeks");
+  revalidatePath("/");
+  revalidatePath("/archive");
+  revalidatePath("/parents");
+  return { ok: true };
 }

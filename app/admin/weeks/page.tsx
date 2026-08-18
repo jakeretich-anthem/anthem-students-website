@@ -1,17 +1,8 @@
 import Link from "next/link";
 import AdminChrome from "../components/AdminChrome";
+import WeeksList, { type WeekRow } from "./WeeksList";
 import { createClient } from "../../../utils/supabase/server";
 import { createBlankWeek, duplicateLastWeek } from "../week/actions";
-
-type WeekRow = {
-  id: number;
-  series_name: string;
-  series_week_number: number;
-  title: string;
-  status: "draft" | "live";
-  scheduled_publish_at: string | null;
-  published_at: string | null;
-};
 
 export default async function AdminWeeksPage() {
   const supabase = await createClient();
@@ -51,32 +42,7 @@ export default async function AdminWeeksPage() {
           <p>Start with a new week to get the first one drafted.</p>
         </div>
       ) : (
-        <div className="admin-weeks-list">
-          {weeks.map((w) => {
-            const scheduled = w.scheduled_publish_at ? new Date(w.scheduled_publish_at) : null;
-            return (
-              <Link key={w.id} href={`/admin/week/${w.id}`} className="admin-weeks-row">
-                <div>
-                  <h5>
-                    {w.series_name || "Untitled series"} · Week {w.series_week_number}
-                    {w.title ? ` — ${w.title}` : ""}
-                  </h5>
-                  <p>
-                    {w.status === "live"
-                      ? w.published_at
-                        ? `Published ${new Date(w.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-                        : "Published"
-                      : scheduled
-                      ? `Draft · goes live ${scheduled.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
-                      : "Draft"}
-                  </p>
-                </div>
-                <span className={`admin-status-badge ${w.status}`}>{w.status === "live" ? "● Live" : "Draft"}</span>
-                <span className="chev">›</span>
-              </Link>
-            );
-          })}
-        </div>
+        <WeeksList weeks={weeks} />
       )}
     </AdminChrome>
   );
