@@ -42,6 +42,7 @@ export type DbEvent = {
   location: string | null;
   detail: string | null;
   signup_url: string | null;
+  image_url: string | null;
 };
 
 export type MenuSummary = {

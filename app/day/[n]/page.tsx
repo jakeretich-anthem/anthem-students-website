@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import StudentScreen from "../../components/StudentScreen";
 import DayComplete from "../../components/DayComplete";
+import TrackView from "../../components/TrackView";
 import { getCurrentWeek, getMenuSummary } from "../../lib/data";
 
 export default async function DayPage({ params }: { params: Promise<{ n: string }> }) {
@@ -17,6 +18,7 @@ export default async function DayPage({ params }: { params: Promise<{ n: string 
       menu={menu}
       quiet
     >
+      <TrackView event="day_view" weekId={week.id} dayNumber={day.day_number} />
       <p className="bigidea" style={{ fontSize: 23 }}>
         {day.title}
       </p>

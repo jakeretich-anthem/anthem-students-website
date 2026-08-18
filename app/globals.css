@@ -1275,3 +1275,284 @@ textarea.admin-input.tall {
 .admin-weeks-row .chev {
   margin-left: auto;
 }
+
+/* ── admin: start from notes ───────────────────────
+   Source on the left, what came back on the right, per the mockup —
+   the leader is checking a draft against the notes it came from, so
+   the two have to be readable at the same time. */
+.admin-notes-grid {
+  display: grid;
+  grid-template-columns: 1fr 40px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.admin-notes-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--hot);
+  padding-top: 60px;
+}
+.admin-paste {
+  display: block;
+  width: 100%;
+  min-height: 300px;
+  resize: vertical;
+  background: #101219;
+  border: 1px dashed rgba(127, 227, 255, 0.3);
+  border-radius: 9px;
+  padding: 16px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--paper);
+}
+.admin-paste::placeholder {
+  color: #5b6274;
+}
+.admin-paste:focus {
+  outline: none;
+  border-style: solid;
+  border-color: rgba(127, 227, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(127, 227, 255, 0.12);
+}
+.admin-paste:disabled {
+  opacity: 0.6;
+}
+.admin-outfield {
+  background: #101219;
+  border: 1px solid rgba(61, 255, 160, 0.28);
+  border-radius: 7px;
+  padding: 9px 11px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #dfe3ec;
+  margin-bottom: 9px;
+}
+.admin-outfield .ol {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #3dffa0;
+  margin-bottom: 4px;
+}
+.admin-notes-empty {
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  padding: 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ash);
+}
+.admin-notes-promise {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  line-height: 1.7;
+  color: var(--ash);
+  margin-top: 12px;
+}
+/* .btn is full-width by default; header actions sit inline instead. */
+.admin-skip {
+  display: inline-block;
+  width: auto;
+  padding: 12px 18px;
+}
+
+/* ── admin: publish & send ───────────────────────── */
+.admin-publish-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  align-items: start;
+}
+.admin-sharebox {
+  display: block;
+  width: 100%;
+  min-height: 132px;
+  resize: vertical;
+  background: #101219;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 9px;
+  padding: 14px;
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+  color: #cdd3e0;
+}
+.admin-sharebox:focus {
+  outline: none;
+  border-color: rgba(127, 227, 255, 0.45);
+  box-shadow: 0 0 0 3px rgba(127, 227, 255, 0.12);
+}
+.admin-linknote {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ash);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-top: 12px;
+  line-height: 1.9;
+  word-break: break-word;
+}
+.admin-linknote a {
+  color: var(--ice);
+  text-decoration: underline;
+}
+.admin-copyfail {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: #ff6b9d;
+  margin-top: 10px;
+}
+.admin-notlive {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #ffb43c;
+  background: rgba(255, 180, 60, 0.08);
+  border: 1px solid rgba(255, 180, 60, 0.28);
+  border-radius: 7px;
+  padding: 10px 12px;
+  margin-bottom: 18px;
+}
+.admin-qr {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.admin-qr img {
+  width: 128px;
+  height: 128px;
+  border-radius: 8px;
+  background: #fff;
+  flex: none;
+}
+.admin-qr-btn {
+  display: inline-block;
+  width: auto;
+  padding: 11px 16px;
+  margin-top: 9px;
+}
+.admin-bignum {
+  font-family: var(--display);
+  font-size: 64px;
+  color: var(--ice);
+  line-height: 0.9;
+  text-shadow: 0 0 30px var(--glow-ice);
+}
+.admin-numlabel {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ash);
+  margin-top: 8px;
+}
+.admin-numrows {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 13px;
+  margin-top: 6px;
+}
+.admin-numrows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  color: #aeb4c4;
+  margin-bottom: 7px;
+}
+.admin-numrows dd {
+  color: #dfe3ec;
+}
+.admin-numrows dd.up {
+  color: #3dffa0;
+}
+.admin-privacynote {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  line-height: 1.8;
+  color: var(--ash);
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── admin: events ───────────────────────────────── */
+.admin-linkbtn {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ice);
+  padding: 4px 0;
+  margin-top: 6px;
+  display: inline-block;
+}
+.admin-linkbtn:hover {
+  color: var(--paper);
+}
+.admin-linkbtn.danger {
+  color: #ff6b9d;
+}
+.admin-linkbtn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.admin-event-row {
+  align-items: flex-start;
+}
+.admin-event-thumb {
+  width: 54px;
+  height: 54px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #101219 center/cover no-repeat;
+  flex: none;
+}
+.admin-event-body {
+  flex: 1;
+  min-width: 0;
+}
+.admin-event-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ── student: event image ─────────────────────────
+   Spans the card above the date/detail row rather than squeezing in
+   beside them, so a phone-width card still reads date-first. */
+.evt {
+  flex-wrap: wrap;
+}
+.evtimg {
+  flex-basis: 100%;
+  width: 100%;
+  max-height: 160px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+
+/* Admin's side-by-side layouts have nowhere to go on a phone — one
+   column, arrow hidden, rather than two unreadable ones. */
+@media (max-width: 900px) {
+  .admin-notes-grid,
+  .admin-publish-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-notes-arrow {
+    display: none;
+  }
+}

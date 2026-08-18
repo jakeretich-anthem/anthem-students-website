@@ -35,10 +35,13 @@ export default async function AdminWeeksPage() {
             </button>
           </form>
           <form action={createBlankWeek}>
-            <button className="btn primary" type="submit">
-              + New week
+            <button className="btn ghost" type="submit">
+              Start blank
             </button>
           </form>
+          <Link className="btn primary" href="/admin/week/new">
+            + New week from notes
+          </Link>
         </div>
       </div>
 

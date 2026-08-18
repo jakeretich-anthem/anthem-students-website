@@ -1,4 +1,5 @@
 import StudentScreen from "../components/StudentScreen";
+import TrackView from "../components/TrackView";
 import { getEvents, getMenuSummary } from "../lib/data";
 
 function eventDateParts(iso: string) {
@@ -14,6 +15,7 @@ export default async function EventsPage() {
 
   return (
     <StudentScreen appbar={{ mode: "home", label: "Events" }} menu={menu}>
+      <TrackView event="events_view" />
       <div className="tape">Next 60 days</div>
       <div className="rule" />
 
@@ -27,6 +29,12 @@ export default async function EventsPage() {
           const { day, month } = eventDateParts(evt.event_date);
           return (
             <div className="evt" key={evt.id}>
+              {evt.image_url && (
+                // Flat card above the scanlines, same rule as scripture:
+                // chrome carries the retro treatment, content doesn't.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="evtimg" src={evt.image_url} alt="" />
+              )}
               <div className="evtdate">
                 <b>{day}</b>
                 <span>{month}</span>

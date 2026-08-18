@@ -1,4 +1,5 @@
 import ParentScreen from "../components/ParentScreen";
+import TrackView from "../components/TrackView";
 import { getCurrentWeek, getMenuSummary, formatShortDate } from "../lib/data";
 
 export default async function ParentsPage() {
@@ -23,6 +24,7 @@ export default async function ParentsPage() {
       title={effectiveDate ? `Week of ${formatShortDate(effectiveDate)}` : week.title}
       menu={menu}
     >
+      <TrackView event="parent_guide_view" weekId={week.id} />
       <div className="card">
         <div className="parentsub" style={{ marginBottom: 7 }}>
           What we covered

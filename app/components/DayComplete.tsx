@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { trackEvent } from "./TrackView";
 
 export default function DayComplete({ weekId, dayNumber }: { weekId: number; dayNumber: number }) {
   const [done, setDone] = useState(false);
@@ -17,6 +18,7 @@ export default function DayComplete({ weekId, dayNumber }: { weekId: number; day
 
   function markDone() {
     setDone(true);
+    trackEvent("day_complete", weekId, dayNumber);
     try {
       localStorage.setItem(doneKey, "true");
     } catch {
