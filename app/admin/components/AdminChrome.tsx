@@ -13,15 +13,19 @@ export default function AdminChrome({
       <div className="admin-dash">
         <div className="admin-side">
           <div className="admin-side-brand">Anthem Admin</div>
-          <Link href="/admin" className={`admin-nav-item${active === "this-week" ? " on" : ""}`}>
-            This Week
-          </Link>
-          <Link href="/admin/weeks" className={`admin-nav-item${active === "all-weeks" ? " on" : ""}`}>
-            All Weeks
-          </Link>
-          <Link href="/admin/events" className={`admin-nav-item${active === "events" ? " on" : ""}`}>
-            Events
-          </Link>
+          {/* Wrapped so the phone layout can scroll the nav sideways on its
+              own without carrying the sign-out button off-screen with it. */}
+          <nav className="admin-nav">
+            <Link href="/admin" className={`admin-nav-item${active === "this-week" ? " on" : ""}`}>
+              This Week
+            </Link>
+            <Link href="/admin/weeks" className={`admin-nav-item${active === "all-weeks" ? " on" : ""}`}>
+              All Weeks
+            </Link>
+            <Link href="/admin/events" className={`admin-nav-item${active === "events" ? " on" : ""}`}>
+              Events
+            </Link>
+          </nav>
           <div className="admin-side-foot">
             <SignOutButton />
           </div>

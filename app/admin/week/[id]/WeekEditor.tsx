@@ -1,8 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "../../../../utils/supabase/client";
-import { duplicateLastWeek } from "../actions";
+import { deleteWeek, duplicateLastWeek } from "../actions";
 import type { DbDay, DbWeek } from "../../../lib/data";
 
 type FormWeek = Omit<DbWeek, "starters" | "scheduled_publish_at"> & {
@@ -37,6 +38,10 @@ export default function WeekEditor({ initialWeek, initialDays }: { initialWeek: 
   const [days, setDays] = useState<DbDay[]>(initialDays);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [uploading, setUploading] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const router = useRouter();
 
   const skipFirstRun = useRef(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -152,6 +157,21 @@ export default function WeekEditor({ initialWeek, initialDays }: { initialWeek: 
       : saveState === "error"
       ? "Save failed"
       : "";
+
+  async function handleDelete() {
+    setDeleting(true);
+    setDeleteError(null);
+    const result = await deleteWeek(week.id);
+    if (!result.ok) {
+      setDeleting(false);
+      setDeleteError(result.error);
+      return;
+    }
+    // The editor's own route is gone now — leave before a refresh can
+    // 404 the page out from under the leader.
+    router.replace("/admin/weeks");
+    router.refresh();
+  }
 
   return (
     <>
@@ -385,6 +405,45 @@ export default function WeekEditor({ initialWeek, initialDays }: { initialWeek: 
           Publish &amp; send →
         </a>
       </div>
+
+      {/* Deleting the week you're editing. Kept off the main action row and
+          two taps deep, since it's the only control on this screen that
+          can't be undone by editing something back. */}
+      <div className="admin-danger">
+        {deleteError && <div className="admin-error">{deleteError}</div>}
+        {confirmingDelete ? (
+          <div className="admin-week-tools">
+            <span className="admin-msub">
+              {week.status === "live"
+                ? "This week is live — students lose it. Delete anyway?"
+                : "Delete this week and its three days for good?"}
+            </span>
+            <button className="admin-linkbtn danger" type="button" disabled={deleting} onClick={handleDelete}>
+              {deleting ? "Deleting…" : "Yes, delete"}
+            </button>
+            <button
+              className="admin-linkbtn"
+              type="button"
+              disabled={deleting}
+              onClick={() => setConfirmingDelete(false)}
+            >
+              Keep
+            </button>
+          </div>
+        ) : (
+          <button
+            className="admin-linkbtn danger"
+            type="button"
+            onClick={() => {
+              setConfirmingDelete(true);
+              setDeleteError(null);
+            }}
+          >
+            Delete this week
+          </button>
+        )}
+      </div>
     </>
   );
+
 }

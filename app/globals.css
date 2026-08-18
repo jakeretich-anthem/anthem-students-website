@@ -642,6 +642,52 @@ button {
   transform: translateX(18px);
 }
 
+/* ── menu foot: install + leader login ─────────────
+   Both sit under the reduce-effects toggle, which already holds the
+   bottom of the menu with margin-top:auto. The install button is chrome
+   (mono, ice, bordered); the leader link is quieter still — findable if
+   you know it's there, invisible if you don't. */
+.menu-install {
+  padding-top: 14px;
+}
+.menu-installbtn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ice);
+  background: rgba(127, 227, 255, 0.05);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 14px;
+}
+.menu-installsteps {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ash);
+  margin-top: 10px;
+}
+.menu-installsteps strong {
+  color: var(--paper);
+  font-weight: 600;
+}
+.menu-leaderlink {
+  display: block;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #4d5364;
+  padding: 14px 0 2px;
+}
+.menu-leaderlink:hover {
+  color: var(--ash);
+}
+
 /* ── events ────────────────────────────────────── */
 .evt {
   display: flex;
@@ -1082,6 +1128,10 @@ button {
   display: flex;
   flex-direction: column;
 }
+.admin-nav {
+  display: flex;
+  flex-direction: column;
+}
 .admin-side-brand {
   font-family: var(--display);
   font-size: 14px;
@@ -1272,8 +1322,30 @@ textarea.admin-input.tall {
   color: var(--ash);
   margin-top: 2px;
 }
-.admin-weeks-row .chev {
+/* The row's tap target is the text block, so the delete button beside it
+   isn't nested inside the link to the editor. */
+.admin-weeks-rowbody {
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+}
+.admin-week-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.admin-week-tools .admin-msub {
+  margin-top: 0;
+}
+
+/* Delete-this-week, set apart from the row of things that publish it. */
+.admin-danger {
+  margin-top: 26px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 /* ── admin: start from notes ───────────────────────
@@ -1554,5 +1626,106 @@ textarea.admin-input.tall {
   }
   .admin-notes-arrow {
     display: none;
+  }
+}
+
+/* ── admin on a phone ──────────────────────────────
+   A 190px sidebar next to the editor leaves about 200px for the form on a
+   phone, which is where the admin screens fell apart. Below 820px the
+   sidebar becomes a top bar and everything under it goes single-column. */
+@media (max-width: 820px) {
+  .admin-dash {
+    flex-direction: column;
+  }
+  /* Two rows: wordmark and sign-out on top, the three nav items on their
+     own full-width line below. Ordered rather than reordered in the DOM,
+     which keeps the desktop column reading brand → nav → sign-out. */
+  .admin-side {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px 10px;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .admin-side-brand {
+    order: 1;
+    flex: 1;
+    margin-bottom: 0;
+  }
+  /* Scrolls sideways only if a future nav item overflows; the scrollbar is
+     hidden because it would sit on top of the first item. */
+  .admin-nav {
+    order: 3;
+    flex-basis: 100%;
+    flex-direction: row;
+    margin-top: 8px;
+    margin-left: -10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .admin-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .admin-nav-item {
+    margin-bottom: 0;
+    padding: 8px 10px;
+    white-space: nowrap;
+    flex: none;
+  }
+  .admin-side-foot {
+    order: 2;
+    margin-top: 0;
+    padding-top: 0;
+    padding-left: 10px;
+    border-top: none;
+    flex: none;
+  }
+  .admin-side-foot .admin-signout {
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+  .admin-main {
+    padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 56px);
+    max-width: none;
+  }
+  .admin-fgrid,
+  .admin-fgrid.cols-3 {
+    grid-template-columns: 1fr;
+  }
+  /* Week # / Of stay side by side — two number inputs are legible at any
+     width, and stacking them pushes the rest of the form down a screen. */
+  .admin-fgrid .admin-fgrid.cols-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .admin-actions .btn {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+  .admin-mhead h1 {
+    font-size: 18px;
+  }
+  /* Row body over its own line, badge and delete under it, rather than
+     three things fighting for a phone's width. */
+  .admin-weeks-row {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+  .admin-weeks-rowbody {
+    flex-basis: 100%;
+  }
+  .admin-week-tools,
+  .admin-event-tools {
+    margin-left: auto;
+  }
+}
+
+/* On a wide monitor the 720px column was pinned to the sidebar with the
+   rest of the screen empty beside it. */
+@media (min-width: 1180px) {
+  .admin-main {
+    margin-inline: auto;
   }
 }

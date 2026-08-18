@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import InstallApp from "./InstallApp";
 import type { MenuSummary } from "../lib/data";
 
 export default function Menu({
@@ -75,6 +76,12 @@ export default function Menu({
             onClick={toggleReduceEffects}
           />
         </div>
+        <InstallApp />
+        {/* Leaders only, and deliberately the quietest thing on the screen —
+            students have no account and no reason to tap it. */}
+        <Link href="/admin" className="menu-leaderlink" onClick={onClose}>
+          Leader login
+        </Link>
       </div>
     </div>
   );
