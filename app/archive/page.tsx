@@ -1,5 +1,6 @@
 import Link from "next/link";
 import StudentScreen from "../components/StudentScreen";
+import TrackView from "../components/TrackView";
 import { getArchiveSeries, getCurrentWeek, getMenuSummary, formatShortDate } from "../lib/data";
 
 export default async function ArchivePage() {
@@ -18,6 +19,7 @@ export default async function ArchivePage() {
 
   return (
     <StudentScreen appbar={{ mode: "home", label: "Past Weeks" }} menu={menu}>
+      <TrackView event="archive_view" />
       {series.map((s, si) => (
         <div key={s.name}>
           <div className="tape">Series: {s.name}</div>

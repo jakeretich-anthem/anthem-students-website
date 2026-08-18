@@ -381,6 +381,9 @@ export default function WeekEditor({ initialWeek, initialDays }: { initialWeek: 
             Duplicate last week
           </button>
         </form>
+        <a className="btn primary" href={`/admin/week/${week.id}/published`}>
+          Publish &amp; send →
+        </a>
       </div>
     </>
   );

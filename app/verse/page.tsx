@@ -1,5 +1,6 @@
 import StudentScreen from "../components/StudentScreen";
 import VerseTrainer from "./VerseTrainer";
+import TrackView from "../components/TrackView";
 import { getCurrentWeek, getMenuSummary } from "../lib/data";
 
 export default async function VersePage() {
@@ -16,5 +17,10 @@ export default async function VersePage() {
     );
   }
 
-  return <VerseTrainer reference={week.verse_reference} text={week.verse_text} menu={menu} />;
+  return (
+    <>
+      <TrackView event="verse_practice" weekId={week.id} />
+      <VerseTrainer reference={week.verse_reference} text={week.verse_text} menu={menu} />
+    </>
+  );
 }

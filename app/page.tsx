@@ -2,6 +2,7 @@ import Link from "next/link";
 import StudentScreen from "./components/StudentScreen";
 import Collapse from "./components/Collapse";
 import WeekPath from "./components/WeekPath";
+import TrackView from "./components/TrackView";
 import { getCurrentWeek, getMenuSummary } from "./lib/data";
 
 export default async function HomePage() {
@@ -20,6 +21,7 @@ export default async function HomePage() {
 
   return (
     <StudentScreen appbar={{ mode: "home" }} menu={menu}>
+      <TrackView event="week_view" weekId={week.id} />
       <div className="tape">
         Series: {week.series_name} · Week {week.series_week_number} of {week.series_week_total}
       </div>

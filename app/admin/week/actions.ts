@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "../../../utils/supabase/server";
+import type { NotesDraft } from "../../lib/notesDraft";
 
 const BLANK_WEEK = {
   series_name: "",
@@ -93,6 +94,49 @@ export async function duplicateLastWeek() {
     );
     if (daysError) throw new Error(daysError.message);
   }
+
+  redirect(`/admin/week/${week.id}`);
+}
+
+// Accepting a parsed-notes draft. This is the only thing the notes feature
+// ever writes, and what it writes is a draft: status stays at the column
+// default ('draft'), published_at and scheduled_publish_at stay null. The
+// leader lands in the editor and decides what happens next (SPEC §6,
+// "Automatic publishing" is out of scope).
+//
+// The parser's field names map onto the schema's here — week_title → title,
+// verse_ref → verse_reference, label → title, passage_ref →
+// passage_reference. Fields the notes can't supply (verse text, passage
+// text, series) are left blank for the leader to fill in rather than
+// guessed at.
+export async function createWeekFromDraft(draft: NotesDraft) {
+  const supabase = await createClient();
+
+  const { data: week, error } = await supabase
+    .from("weeks")
+    .insert({
+      ...BLANK_WEEK,
+      title: draft.week_title,
+      big_idea: draft.big_idea,
+      verse_reference: draft.verse_ref,
+      recap: draft.recap,
+    })
+    .select("id")
+    .single();
+  if (error || !week) throw new Error(error?.message ?? "Failed to create week from notes");
+
+  const { error: daysError } = await supabase.from("days").insert(
+    draft.days.slice(0, 3).map((day, i) => ({
+      week_id: week.id,
+      day_number: i + 1,
+      ...BLANK_DAY,
+      title: day.label,
+      passage_reference: day.passage_ref,
+      thought: day.thought,
+      question: day.question,
+    }))
+  );
+  if (daysError) throw new Error(daysError.message);
 
   redirect(`/admin/week/${week.id}`);
 }

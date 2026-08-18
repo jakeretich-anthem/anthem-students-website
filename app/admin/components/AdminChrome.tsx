@@ -5,7 +5,7 @@ export default function AdminChrome({
   active,
   children,
 }: {
-  active: "this-week" | "all-weeks" | null;
+  active: "this-week" | "all-weeks" | "events" | null;
   children: React.ReactNode;
 }) {
   return (
@@ -18,6 +18,9 @@ export default function AdminChrome({
           </Link>
           <Link href="/admin/weeks" className={`admin-nav-item${active === "all-weeks" ? " on" : ""}`}>
             All Weeks
+          </Link>
+          <Link href="/admin/events" className={`admin-nav-item${active === "events" ? " on" : ""}`}>
+            Events
           </Link>
           <div className="admin-side-foot">
             <SignOutButton />
