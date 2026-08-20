@@ -94,16 +94,26 @@ function driveThumb(url) {
 
   return /^https?:\\/\\//.test(raw) ? raw : null;
 }
+// A bare YYYY-MM-DD parses as UTC midnight and then renders one day earlier in
+// any timezone behind UTC, so birthdays would read a day off. Build those as a
+// local date instead; anything else (full ISO timestamps) parses as before.
+function parseDateValue(val) {
+  if (!val) return null;
+  const s = String(val);
+  const bare = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+  const d = bare ? new Date(+bare[1], +bare[2] - 1, +bare[3]) : new Date(s);
+  return isNaN(d) ? null : d;
+}
 function formatDate(val) {
   if (!val) return '';
-  const d = new Date(val);
-  if (isNaN(d)) return val;
+  const d = parseDateValue(val);
+  if (!d) return val;
   return d.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'});
 }
 function calcAge(bd) {
   if (!bd) return null;
-  const d = new Date(bd);
-  if (isNaN(d)) return null;
+  const d = parseDateValue(bd);
+  if (!d) return null;
   const now = new Date();
   let age = now.getFullYear() - d.getFullYear();
   if (now.getMonth() - d.getMonth() < 0 || (now.getMonth()===d.getMonth() && now.getDate()<d.getDate())) age--;
@@ -327,12 +337,41 @@ function updateNav() {
 
 // ── ROSTER ───────────────────────────────────────────────────
 async function loadRoster() {
+  // Every failure here used to be swallowed and rendered as "No students here
+  // yet", which is indistinguishable from an empty sheet — say what went wrong
+  // instead, and give the leader a way to retry without reloading.
+  let error = null;
   try {
     const res = await fetch('/roster/api/sheet/read');
-    const data = await res.json();
-    if (data?.hs) DATA = data;
-  } catch(e) {}
+    let data = null;
+    try { data = await res.json(); } catch(_) {}
+    if (!res.ok) {
+      error = (data && data.error) || ('The roster sheet returned ' + res.status + '.');
+    } else if (!data || !data.hs) {
+      error = 'The roster sheet came back in a shape we could not read.';
+    } else {
+      DATA = data;
+    }
+  } catch(e) {
+    error = 'Could not reach the server. Check your connection and try again.';
+  }
+  showRosterError(error);
   renderAll();
+}
+
+function showRosterError(message) {
+  const el = document.getElementById('roster-error');
+  if (!el) return;
+  if (!message) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  console.error('[roster] ' + message);
+  el.style.display = 'flex';
+  el.innerHTML = '<p><strong>Couldn\\'t load the roster.</strong> ' + message + '</p>' +
+    '<button class="nav-btn primary" onclick="retryLoadRoster(this)">Retry</button>';
+}
+
+async function retryLoadRoster(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Retrying…'; }
+  await loadRoster();
 }
 
 function renderAll() {
@@ -460,7 +499,12 @@ async function doLogin() {
   btn.disabled=false; btn.textContent='Log In';
   if (data.success) {
     currentUser=data.user; canEdit=['approved','admin','leader'].includes(currentUser.role);
-    closeAuthModal(); updateNav(); renderAll();
+    closeAuthModal();
+    // Same entry point the gate's Sign In uses. This branch used to call
+    // renderAll() directly, which drew the empty in-memory DATA and left the
+    // roster reading "No students here yet" until the page was reloaded —
+    // loadRoster() is only ever called from initApp().
+    await initApp();
     showToast('✓ Welcome back, '+currentUser.name+'!','ok');
   } else setMsg(msg, data.error||'Login failed.','error');
 }
