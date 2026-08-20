@@ -319,6 +319,16 @@ header { padding: 44px 0 24px; text-align: center; }
 }
 .readonly-banner p { font-size: 13px; color: var(--text2); }
 
+/* Shown when the roster sheet can't be loaded, so a fetch failure stops
+   looking exactly like an empty roster. */
+.roster-error-banner {
+  background: rgba(220,80,80,.07); border: 1px solid rgba(220,80,80,.35);
+  border-radius: var(--radius); padding: 12px 18px; margin-bottom: 22px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.roster-error-banner p { font-size: 13px; color: var(--text2); }
+.roster-error-banner strong { color: var(--text); }
+
 /* ── TABS (HS/MS) ──────────────────────────────────────────── */
 .seg-tabs {
   display: flex; gap: 0; background: var(--surface); border-radius: 30px;

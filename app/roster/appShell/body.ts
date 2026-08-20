@@ -102,6 +102,8 @@ export const HTML_BODY = `
         <div class="subtitle">Anthem Students · ASM <span id="year-sub">2026</span></div>
       </header>
 
+      <div class="roster-error-banner" id="roster-error" style="display:none"></div>
+
       <div class="readonly-banner" id="readonly-banner" style="display:none">
         <p>You're viewing in <strong>read-only mode</strong>. Log in to edit.</p>
         <button class="nav-btn primary" onclick="openAuthModal('login')">Log In</button>
