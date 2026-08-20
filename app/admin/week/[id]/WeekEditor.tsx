@@ -192,145 +192,217 @@ export default function WeekEditor({ initialWeek, initialDays }: { initialWeek: 
         </div>
       </div>
 
-      <div className="admin-fgrid">
-        <div className="admin-field">
-          <label className="admin-label">Series name</label>
-          <input
-            className="admin-input"
-            value={week.series_name}
-            onChange={(e) => updateWeek("series_name", e.target.value)}
-          />
-        </div>
-        <div className="admin-fgrid cols-3" style={{ margin: 0 }}>
+      {/* Thirty-odd fields used to run as one unbroken column. Same fields,
+          grouped, so a leader can find the one they came to change. */}
+      <section className="admin-section">
+        <h2>The week</h2>
+
+        <div className="admin-fgrid">
           <div className="admin-field">
-            <label className="admin-label">Week #</label>
+            <label className="admin-label" htmlFor="w-series">
+              Series name
+            </label>
             <input
+              id="w-series"
               className="admin-input"
-              type="number"
-              min={1}
-              value={week.series_week_number}
-              onChange={(e) => updateWeek("series_week_number", Number(e.target.value))}
+              value={week.series_name}
+              onChange={(e) => updateWeek("series_name", e.target.value)}
+            />
+          </div>
+          <div className="admin-fgrid cols-3" style={{ margin: 0 }}>
+            <div className="admin-field">
+              <label className="admin-label" htmlFor="w-weeknum">
+                Week #
+              </label>
+              <input
+                id="w-weeknum"
+                className="admin-input"
+                type="number"
+                min={1}
+                value={week.series_week_number}
+                onChange={(e) => updateWeek("series_week_number", Number(e.target.value))}
+              />
+            </div>
+            <div className="admin-field">
+              <label className="admin-label" htmlFor="w-weektotal">
+                Of
+              </label>
+              <input
+                id="w-weektotal"
+                className="admin-input"
+                type="number"
+                min={1}
+                value={week.series_week_total}
+                onChange={(e) => updateWeek("series_week_total", Number(e.target.value))}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="admin-fgrid">
+          <div className="admin-field">
+            <label className="admin-label" htmlFor="w-title">
+              Week title
+            </label>
+            <input
+              id="w-title"
+              className="admin-input"
+              value={week.title}
+              onChange={(e) => updateWeek("title", e.target.value)}
+            />
+            <p className="admin-help">Only students browsing past weeks see this.</p>
+          </div>
+          <div className="admin-field">
+            <label className="admin-label" htmlFor="w-bigidea">
+              Big idea
+            </label>
+            <input
+              id="w-bigidea"
+              className="admin-input"
+              value={week.big_idea}
+              onChange={(e) => updateWeek("big_idea", e.target.value)}
+            />
+            <p className="admin-help">One sentence — the largest text on the student home screen.</p>
+          </div>
+        </div>
+
+        <div className="admin-field">
+          <label className="admin-label" htmlFor="w-graphic">
+            Week graphic
+          </label>
+          <div className="admin-imgpick">
+            <div
+              className="admin-imgpick-preview"
+              style={week.image_url ? { backgroundImage: `url(${week.image_url})` } : undefined}
+            />
+            <div>
+              <input
+                id="w-graphic"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                disabled={uploading}
+              />
+              {uploading && <div className="admin-msub">Uploading…</div>}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="admin-section">
+        <h2>Memory verse</h2>
+
+        <div className="admin-fgrid">
+          <div className="admin-field">
+            <label className="admin-label" htmlFor="w-verseref">
+              Verse reference
+            </label>
+            <input
+              id="w-verseref"
+              className="admin-input"
+              value={week.verse_reference}
+              onChange={(e) => updateWeek("verse_reference", e.target.value)}
             />
           </div>
           <div className="admin-field">
-            <label className="admin-label">Of</label>
+            <label className="admin-label" htmlFor="w-versetrans">
+              Translation
+            </label>
             <input
+              id="w-versetrans"
               className="admin-input"
-              type="number"
-              min={1}
-              value={week.series_week_total}
-              onChange={(e) => updateWeek("series_week_total", Number(e.target.value))}
+              value={week.verse_translation}
+              onChange={(e) => updateWeek("verse_translation", e.target.value)}
             />
           </div>
         </div>
-      </div>
 
-      <div className="admin-fgrid">
         <div className="admin-field">
-          <label className="admin-label">Week title</label>
-          <input className="admin-input" value={week.title} onChange={(e) => updateWeek("title", e.target.value)} />
+          <label className="admin-label" htmlFor="w-versetext">
+            Verse text
+          </label>
+          <textarea
+            id="w-versetext"
+            className="admin-input"
+            value={week.verse_text}
+            onChange={(e) => updateWeek("verse_text", e.target.value)}
+          />
+          <p className="admin-help">The verse trainer blanks these words out one level at a time.</p>
         </div>
+      </section>
+
+      <section className="admin-section">
+        <h2>Recap &amp; parent guide</h2>
+
         <div className="admin-field">
-          <label className="admin-label">Big idea — one sentence</label>
-          <input
-            className="admin-input"
-            value={week.big_idea}
-            onChange={(e) => updateWeek("big_idea", e.target.value)}
+          <label className="admin-label" htmlFor="w-recap">
+            Recap — what we talked about
+          </label>
+          <textarea
+            id="w-recap"
+            className="admin-input tall"
+            value={week.recap}
+            onChange={(e) => updateWeek("recap", e.target.value)}
           />
+          <p className="admin-help">Shows on both the student home screen and the parent guide.</p>
         </div>
-      </div>
 
-      <div className="admin-fgrid">
         <div className="admin-field">
-          <label className="admin-label">Verse reference</label>
-          <input
+          <label className="admin-label" htmlFor="w-headsup">
+            Heads up for parents (optional)
+          </label>
+          <textarea
+            id="w-headsup"
             className="admin-input"
-            value={week.verse_reference}
-            onChange={(e) => updateWeek("verse_reference", e.target.value)}
+            value={week.heads_up ?? ""}
+            onChange={(e) => updateWeek("heads_up", e.target.value)}
           />
+          <p className="admin-help">Anything hard that came up on Wednesday night. Parent guide only.</p>
         </div>
+
         <div className="admin-field">
-          <label className="admin-label">Translation</label>
-          <input
-            className="admin-input"
-            value={week.verse_translation}
-            onChange={(e) => updateWeek("verse_translation", e.target.value)}
-          />
+          <label className="admin-label" htmlFor="w-starter-0">
+            Conversation starters
+          </label>
+          {week.starters.map((s, i) => (
+            <input
+              key={i}
+              id={`w-starter-${i}`}
+              aria-label={`Conversation starter ${i + 1}`}
+              className="admin-input"
+              style={{ marginBottom: i < 2 ? 8 : 0 }}
+              value={s}
+              onChange={(e) => updateStarter(i, e.target.value)}
+              placeholder={`Starter ${i + 1}`}
+            />
+          ))}
         </div>
-      </div>
+      </section>
 
-      <div className="admin-field">
-        <label className="admin-label">Verse text</label>
-        <textarea
-          className="admin-input"
-          value={week.verse_text}
-          onChange={(e) => updateWeek("verse_text", e.target.value)}
-        />
-      </div>
+      <section className="admin-section">
+        <h2>The three days</h2>
 
-      <div className="admin-field">
-        <label className="admin-label">Recap — what we talked about</label>
-        <textarea
-          className="admin-input tall"
-          value={week.recap}
-          onChange={(e) => updateWeek("recap", e.target.value)}
-        />
-      </div>
-
-      <div className="admin-field">
-        <label className="admin-label">Heads up for parents (optional)</label>
-        <textarea
-          className="admin-input"
-          value={week.heads_up ?? ""}
-          onChange={(e) => updateWeek("heads_up", e.target.value)}
-        />
-      </div>
-
-      <div className="admin-field">
-        <label className="admin-label">Conversation starters</label>
-        {week.starters.map((s, i) => (
-          <input
-            key={i}
-            className="admin-input"
-            style={{ marginBottom: i < 2 ? 8 : 0 }}
-            value={s}
-            onChange={(e) => updateStarter(i, e.target.value)}
-            placeholder={`Starter ${i + 1}`}
-          />
-        ))}
-      </div>
-
-      <div className="admin-field">
-        <label className="admin-label">Week graphic</label>
-        <div className="admin-imgpick">
-          <div
-            className="admin-imgpick-preview"
-            style={week.image_url ? { backgroundImage: `url(${week.image_url})` } : undefined}
-          />
-          <div>
-            <input type="file" accept="image/*" onChange={handleImageChange} disabled={uploading} />
-            {uploading && <div className="admin-msub">Uploading…</div>}
-          </div>
-        </div>
-      </div>
-
-      <div className="admin-field">
-        <label className="admin-label">The three days</label>
         {days.map((d) => (
           <div className="admin-daybox" key={d.id}>
             <div className="admin-daybox-head">Day {d.day_number}</div>
             <div className="admin-fgrid">
               <div className="admin-field">
-                <label className="admin-label">Title</label>
+                <label className="admin-label" htmlFor={`d${d.day_number}-title`}>
+                  Title
+                </label>
                 <input
+                  id={`d${d.day_number}-title`}
                   className="admin-input"
                   value={d.title}
                   onChange={(e) => updateDay(d.day_number, "title", e.target.value)}
                 />
               </div>
               <div className="admin-field">
-                <label className="admin-label">Passage reference</label>
+                <label className="admin-label" htmlFor={`d${d.day_number}-ref`}>
+                  Passage reference
+                </label>
                 <input
+                  id={`d${d.day_number}-ref`}
                   className="admin-input"
                   value={d.passage_reference}
                   onChange={(e) => updateDay(d.day_number, "passage_reference", e.target.value)}
@@ -338,24 +410,33 @@ export default function WeekEditor({ initialWeek, initialDays }: { initialWeek: 
               </div>
             </div>
             <div className="admin-field">
-              <label className="admin-label">Passage text</label>
+              <label className="admin-label" htmlFor={`d${d.day_number}-passage`}>
+                Passage text
+              </label>
               <textarea
+                id={`d${d.day_number}-passage`}
                 className="admin-input"
                 value={d.passage_text}
                 onChange={(e) => updateDay(d.day_number, "passage_text", e.target.value)}
               />
             </div>
             <div className="admin-field">
-              <label className="admin-label">The thought</label>
+              <label className="admin-label" htmlFor={`d${d.day_number}-thought`}>
+                The thought
+              </label>
               <textarea
+                id={`d${d.day_number}-thought`}
                 className="admin-input"
                 value={d.thought}
                 onChange={(e) => updateDay(d.day_number, "thought", e.target.value)}
               />
             </div>
             <div className="admin-field" style={{ marginBottom: 0 }}>
-              <label className="admin-label">Question</label>
+              <label className="admin-label" htmlFor={`d${d.day_number}-question`}>
+                Question
+              </label>
               <input
+                id={`d${d.day_number}-question`}
                 className="admin-input"
                 value={d.question}
                 onChange={(e) => updateDay(d.day_number, "question", e.target.value)}
@@ -363,35 +444,43 @@ export default function WeekEditor({ initialWeek, initialDays }: { initialWeek: 
             </div>
           </div>
         ))}
-      </div>
+      </section>
 
-      <div className="admin-fgrid">
-        <div className="admin-field">
-          <label className="admin-label">Status</label>
-          <div className="toggle" style={{ paddingTop: 4 }}>
-            <span>{week.status === "live" ? "Published" : "Draft"}</span>
-            <button
-              className="sw"
-              data-on={week.status === "live"}
-              role="switch"
-              aria-checked={week.status === "live"}
-              aria-label="Draft or published"
-              onClick={toggleStatus}
-              type="button"
+      <section className="admin-section">
+        <h2>Publishing</h2>
+
+        <div className="admin-fgrid">
+          <div className="admin-field">
+            {/* A switch can't be the target of a <label htmlFor>, so this one
+                stays a plain span and the button carries its own aria-label. */}
+            <span className="admin-label">Status</span>
+            <div className="toggle" style={{ paddingTop: 4 }}>
+              <span>{week.status === "live" ? "Published" : "Draft"}</span>
+              <button
+                className="sw"
+                data-on={week.status === "live"}
+                role="switch"
+                aria-checked={week.status === "live"}
+                aria-label="Draft or published"
+                onClick={toggleStatus}
+                type="button"
+              />
+            </div>
+          </div>
+          <div className="admin-field">
+            <label className="admin-label" htmlFor="w-schedule">
+              Scheduled publish
+            </label>
+            <input
+              id="w-schedule"
+              className="admin-input"
+              type="datetime-local"
+              value={week.scheduled_publish_at}
+              onChange={(e) => updateWeek("scheduled_publish_at", e.target.value)}
             />
           </div>
         </div>
-        <div className="admin-field">
-          <label className="admin-label">Scheduled publish</label>
-          <input
-            className="admin-input"
-            type="datetime-local"
-            value={week.scheduled_publish_at}
-            onChange={(e) => updateWeek("scheduled_publish_at", e.target.value)}
-          />
-        </div>
-      </div>
-
+      </section>
       <div className="admin-actions">
         <a className="btn ghost" href={`/admin/week/${week.id}/preview`} target="_blank" rel="noreferrer">
           Preview as student

@@ -12,7 +12,7 @@ export default async function HomePage() {
     return (
       <StudentScreen appbar={{ mode: "home" }} menu={menu}>
         <div className="emptystate">
-          <div className="kicker">Nothing published yet</div>
+          <h1 className="kicker">Nothing published yet</h1>
           <p>This is where next week&rsquo;s stuff will show up. Check back after Wednesday night.</p>
         </div>
       </StudentScreen>
@@ -22,28 +22,24 @@ export default async function HomePage() {
   return (
     <StudentScreen appbar={{ mode: "home" }} menu={menu}>
       <TrackView event="week_view" weekId={week.id} />
-      <div className="tape">
-        Series: {week.series_name} · Week {week.series_week_number} of {week.series_week_total}
+      <div className="sectionhead">
+        <span>Series: {week.series_name}</span>
+        <span>
+          Week {week.series_week_number} of {week.series_week_total}
+        </span>
       </div>
-      <div className="rule" />
 
-      <div className="kicker">This week&rsquo;s big idea</div>
-      <p className="bigidea">{week.big_idea}</p>
-
-      <div style={{ height: 14 }} />
+      <div>
+        <div className="kicker">This week&rsquo;s big idea</div>
+        <h1 className="bigidea">{week.big_idea}</h1>
+      </div>
 
       <Link href="/verse" className="versecard">
         <div className="versetext">&ldquo;{week.verse_text}&rdquo;</div>
-        <div className="verseref">
-          {week.verse_reference} · Tap to practice →
-        </div>
+        <div className="verseref">{week.verse_reference} · Tap to practice →</div>
       </Link>
 
-      <div className="dashrule" />
-
       <WeekPath weekId={week.id} days={week.days} />
-
-      <div style={{ height: 6 }} />
 
       <Collapse label="What we talked about">{week.recap}</Collapse>
 

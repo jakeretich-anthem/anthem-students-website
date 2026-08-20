@@ -30,41 +30,43 @@ export default async function ArchiveWeekPage({ params }: { params: Promise<{ we
       menu={menu}
       quiet
     >
-      <div className="tape">
-        W{week.series_week_number} · {week.verse_reference}
-        {effectiveDate ? ` · ${formatShortDate(effectiveDate)}` : ""}
+      <div className="sectionhead">
+        <span>Week {week.series_week_number}</span>
+        <span>
+          {week.verse_reference}
+          {effectiveDate ? ` · ${formatShortDate(effectiveDate)}` : ""}
+        </span>
       </div>
-      <div className="rule" />
 
-      <div className="kicker">The big idea</div>
-      <p className="bigidea">{week.big_idea}</p>
-
-      <div style={{ height: 14 }} />
+      <div>
+        <div className="kicker">The big idea</div>
+        <h1 className="bigidea">{week.big_idea}</h1>
+      </div>
 
       <div className="versecard">
         <div className="versetext">&ldquo;{week.verse_text}&rdquo;</div>
         <div className="verseref">{week.verse_reference}</div>
       </div>
 
-      <div className="dashrule" />
+      <section className="stack snug">
+        <h2 className="sectionhead ice">
+          <span>The path</span>
+          <ArchiveDots weekId={week.id} dayNumbers={week.days.map((d) => d.day_number)} />
+        </h2>
 
-      <div className="pathhead">
-        <span className="tape" style={{ color: "var(--ice)" }}>
-          The path
-        </span>
-        <ArchiveDots weekId={week.id} dayNumbers={week.days.map((d) => d.day_number)} />
-      </div>
-
-      {week.days.map((d) => (
-        <Link key={d.day_number} href={`/archive/${week.id}/day/${d.day_number}`} className="daycard">
-          <span className="daynum">DAY {d.day_number}</span>
-          <div>
-            <div className="daytitle">{d.title}</div>
-            <div className="daysub">{d.passage_reference.replace(" · WEB", "")}</div>
-          </div>
-          <ArchiveDayStatus weekId={week.id} dayNumber={d.day_number} />
-        </Link>
-      ))}
+        <div className="list">
+          {week.days.map((d) => (
+            <Link key={d.day_number} href={`/archive/${week.id}/day/${d.day_number}`} className="daycard">
+              <span className="daynum">DAY {d.day_number}</span>
+              <span>
+                <span className="daytitle">{d.title}</span>
+                <span className="daysub">{d.passage_reference.replace(" · WEB", "")}</span>
+              </span>
+              <ArchiveDayStatus weekId={week.id} dayNumber={d.day_number} />
+            </Link>
+          ))}
+        </div>
+      </section>
     </StudentScreen>
   );
 }

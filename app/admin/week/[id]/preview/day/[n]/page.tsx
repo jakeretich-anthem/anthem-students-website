@@ -36,24 +36,23 @@ export default async function AdminWeekPreviewDayPage({
       menu={menu}
       quiet
     >
-      <p className="bigidea" style={{ fontSize: 23 }}>
-        {day.title || "Untitled"}
-      </p>
-
-      <div style={{ height: 13 }} />
+      <h1 className="pagetitle">{day.title || "Untitled"}</h1>
 
       <div className="passage">
         <div className="pref">{day.passage_reference}</div>
         <p>{day.passage_text}</p>
       </div>
 
-      <div className="thought">{day.thought}</div>
+      <section className="stack snug">
+        <h2 className="pref hot">The thought</h2>
+        <div className="thought">{day.thought}</div>
+      </section>
 
-      <div className="dashrule" />
-
-      <div className="question">{day.question}</div>
-
-      <div className="journalnote">✎ Write your answer in your journal</div>
+      <section className="stack snug">
+        <h2 className="pref">Think about it</h2>
+        <div className="question">{day.question}</div>
+        <div className="journalnote">✎ Write your answer in your journal</div>
+      </section>
     </StudentScreen>
   );
 }

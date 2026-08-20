@@ -85,25 +85,22 @@ export default function VerseTrainer({
 
   return (
     <StudentScreen appbar={{ mode: "back", href: "/", label: "This week", step: "Memory verse" }} menu={menu}>
-      <div className="tape">
-        Level {level} of 4 · {LEVEL_LABELS[level - 1]}
-      </div>
+      <h1 className="sr-only">Memory verse</h1>
 
-      <div className="levelbar" role="group" aria-label="Choose difficulty level">
+      {/* The level control used to be four 3px bars with no label and no
+          tap target — the level's name lived only in an aria-label. */}
+      <div className="levelbar" role="group" aria-label="How much of the verse to hide">
         {[1, 2, 3, 4].map((l) => (
-          <button
-            key={l}
-            aria-label={`Level ${l}: ${LEVEL_LABELS[l - 1]}`}
-            aria-pressed={l === level}
-            onClick={() => goToLevel(l)}
-          >
+          <button key={l} type="button" aria-pressed={l === level} onClick={() => goToLevel(l)}>
+            <b>{l}</b>
+            <small>{LEVEL_LABELS[l - 1]}</small>
             <i className={l <= level ? "on" : ""} />
           </button>
         ))}
       </div>
 
-      <div className="versecard" style={{ padding: "21px 18px" }}>
-        <div className="versetext" style={{ fontSize: 19, lineHeight: 1.6 }}>
+      <div className="versecard">
+        <div className="versetext">
           &ldquo;
           {words.map((word, i) => {
             const isBlank = blanked.has(i);
@@ -112,13 +109,17 @@ export default function VerseTrainer({
               return <span key={i}>{word} </span>;
             }
             return (
-              <button
-                key={i}
-                className="blank"
-                aria-label="Tap to reveal word"
-                onClick={() => reveal(i)}
-                style={{ width: `${Math.max(2, word.length) * 0.62}em` }}
-              />
+              // The trailing space matters: without it a blank runs straight
+              // into the next word ("____all your").
+              <span key={i}>
+                <button
+                  type="button"
+                  className="blank"
+                  aria-label="Tap to reveal word"
+                  onClick={() => reveal(i)}
+                  style={{ width: `${Math.max(2, word.length) * 0.62}em` }}
+                />{" "}
+              </span>
             );
           })}
           &rdquo;
@@ -126,54 +127,34 @@ export default function VerseTrainer({
         <div className="verseref">{reference}</div>
       </div>
 
-      <div style={{ height: 12 }} />
-
-      {blanked.size > 0 && (
-        <div className="card" style={{ textAlign: "center" }}>
-          <div
-            style={{
-              fontFamily: "var(--mono)",
-              fontSize: 10,
-              letterSpacing: ".16em",
-              color: "var(--ash)",
-              textTransform: "uppercase",
-            }}
-          >
-            Tap a blank to reveal it
-          </div>
-        </div>
-      )}
-
-      <div style={{ height: 12 }} />
+      {blanked.size > 0 && <p className="hintline">Tap any blank to reveal that word.</p>}
 
       <div className="stat">
         <b>{streak}</b>
         <span>Day streak</span>
       </div>
 
-      <div style={{ height: 4 }} />
+      <div className="stack snug">
+        {level < 4 ? (
+          <button className="btn pink" onClick={() => goToLevel(level + 1)}>
+            Hide more words
+          </button>
+        ) : (
+          <button className="btn pink" disabled>
+            All words hidden
+          </button>
+        )}
 
-      {level < 4 ? (
-        <button className="btn pink" onClick={() => goToLevel(level + 1)}>
-          Hide more words
-        </button>
-      ) : (
-        <button className="btn pink" disabled>
-          All words hidden
-        </button>
-      )}
-
-      <div style={{ height: 9 }} />
-
-      {level > 1 ? (
-        <button className="btn ghost" onClick={() => goToLevel(level - 1)}>
-          Show more words
-        </button>
-      ) : (
-        <button className="btn ghost" onClick={() => goToLevel(4)}>
-          Say it from memory
-        </button>
-      )}
+        {level > 1 ? (
+          <button className="btn ghost" onClick={() => goToLevel(level - 1)}>
+            Show more words
+          </button>
+        ) : (
+          <button className="btn ghost" onClick={() => goToLevel(4)}>
+            Say it from memory
+          </button>
+        )}
+      </div>
     </StudentScreen>
   );
 }

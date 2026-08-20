@@ -48,7 +48,7 @@ export default function StudentScreen({
           </button>
         </div>
       </div>
-      <div className="screen-body">{children}</div>
+      <div className="screen-body stack">{children}</div>
       <Menu open={menuOpen} onClose={() => setMenuOpen(false)} data={menu} />
     </div>
   );
