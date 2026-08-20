@@ -61,10 +61,10 @@ export default function WeeksList({ weeks }: { weeks: WeekRow[] }) {
         {weeks.map((w) => (
           <div key={w.id} className="admin-weeks-row">
             <Link href={`/admin/week/${w.id}`} className="admin-weeks-rowbody">
-              <h5>
+              <h3>
                 {w.series_name || "Untitled series"} · Week {w.series_week_number}
                 {w.title ? ` — ${w.title}` : ""}
-              </h5>
+              </h3>
               <p>{stateLine(w)}</p>
             </Link>
             <span className={`admin-status-badge ${w.status}`}>{w.status === "live" ? "● Live" : "Draft"}</span>

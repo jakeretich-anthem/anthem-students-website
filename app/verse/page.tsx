@@ -10,7 +10,7 @@ export default async function VersePage() {
     return (
       <StudentScreen appbar={{ mode: "back", href: "/", label: "This week", step: "Memory verse" }} menu={menu}>
         <div className="emptystate">
-          <div className="kicker">No verse yet</div>
+          <h1 className="kicker">No verse yet</h1>
           <p>A memory verse shows up here as soon as a week is published.</p>
         </div>
       </StudentScreen>

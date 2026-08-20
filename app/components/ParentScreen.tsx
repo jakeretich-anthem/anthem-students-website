@@ -29,7 +29,7 @@ export default function ParentScreen({
       <div className="appbar parent-appbar">
         <div>
           <div className="parentsub">{eyebrow}</div>
-          <div className="parenthead">{title}</div>
+          <h1 className="parenthead">{title}</h1>
         </div>
         <button className="burger parent-burger" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
           <i />
@@ -37,7 +37,7 @@ export default function ParentScreen({
           <i />
         </button>
       </div>
-      <div className="screen-body">{children}</div>
+      <div className="screen-body stack">{children}</div>
       <Menu open={menuOpen} onClose={() => setMenuOpen(false)} data={menu} />
     </div>
   );

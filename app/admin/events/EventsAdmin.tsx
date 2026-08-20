@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useId } from "react";
 import { createClient } from "../../../utils/supabase/client";
 import { createEvent, deleteEvent, updateEvent } from "./actions";
 import type { DbEvent } from "../../lib/data";
@@ -61,6 +61,9 @@ function EventForm({
   busy: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
+  // The "new event" form and an inline editor can both be mounted at once,
+  // so field ids have to be unique per instance.
+  const fid = useId();
 
   function set<K extends keyof Draft>(key: K, value: string) {
     setDraft({ ...draft, [key]: value });
@@ -88,12 +91,22 @@ function EventForm({
     <div className="admin-daybox">
       <div className="admin-fgrid">
         <div className="admin-field">
-          <label className="admin-label">Title</label>
-          <input className="admin-input" value={draft.title} onChange={(e) => set("title", e.target.value)} />
+          <label className="admin-label" htmlFor={`${fid}-title`}>
+            Title
+          </label>
+          <input
+            id={`${fid}-title`}
+            className="admin-input"
+            value={draft.title}
+            onChange={(e) => set("title", e.target.value)}
+          />
         </div>
         <div className="admin-field">
-          <label className="admin-label">Date</label>
+          <label className="admin-label" htmlFor={`${fid}-date`}>
+            Date
+          </label>
           <input
+            id={`${fid}-date`}
             className="admin-input"
             type="date"
             value={draft.event_date}
@@ -104,8 +117,11 @@ function EventForm({
 
       <div className="admin-fgrid">
         <div className="admin-field">
-          <label className="admin-label">Time</label>
+          <label className="admin-label" htmlFor={`${fid}-time`}>
+            Time
+          </label>
           <input
+            id={`${fid}-time`}
             className="admin-input"
             value={draft.time_label}
             onChange={(e) => set("time_label", e.target.value)}
@@ -113,8 +129,11 @@ function EventForm({
           />
         </div>
         <div className="admin-field">
-          <label className="admin-label">Location</label>
+          <label className="admin-label" htmlFor={`${fid}-location`}>
+            Location
+          </label>
           <input
+            id={`${fid}-location`}
             className="admin-input"
             value={draft.location}
             onChange={(e) => set("location", e.target.value)}
@@ -124,13 +143,24 @@ function EventForm({
       </div>
 
       <div className="admin-field">
-        <label className="admin-label">Detail — cost, deadline, what to bring</label>
-        <textarea className="admin-input" value={draft.detail} onChange={(e) => set("detail", e.target.value)} />
+        <label className="admin-label" htmlFor={`${fid}-detail`}>
+          Detail — cost, deadline, what to bring
+        </label>
+        <textarea
+          id={`${fid}-detail`}
+          className="admin-input"
+          value={draft.detail}
+          onChange={(e) => set("detail", e.target.value)}
+        />
+        <p className="admin-help">Students read this on the events screen, so write it as a sentence.</p>
       </div>
 
       <div className="admin-field">
-        <label className="admin-label">Sign-up link (external registration)</label>
+        <label className="admin-label" htmlFor={`${fid}-signup`}>
+          Sign-up link (external registration)
+        </label>
         <input
+          id={`${fid}-signup`}
           className="admin-input"
           value={draft.signup_url}
           onChange={(e) => set("signup_url", e.target.value)}
@@ -139,14 +169,22 @@ function EventForm({
       </div>
 
       <div className="admin-field">
-        <label className="admin-label">Event image</label>
+        <label className="admin-label" htmlFor={`${fid}-image`}>
+          Event image
+        </label>
         <div className="admin-imgpick">
           <div
             className="admin-imgpick-preview"
             style={draft.image_url ? { backgroundImage: `url(${draft.image_url})` } : undefined}
           />
           <div>
-            <input type="file" accept="image/*" onChange={handleImage} disabled={uploading || busy} />
+            <input
+              id={`${fid}-image`}
+              type="file"
+              accept="image/*"
+              onChange={handleImage}
+              disabled={uploading || busy}
+            />
             {uploading && <div className="admin-msub">Uploading…</div>}
             {draft.image_url && !uploading && (
               <button className="admin-linkbtn" type="button" onClick={() => set("image_url", "")}>
@@ -284,7 +322,7 @@ export default function EventsAdmin({ events }: { events: DbEvent[] }) {
                   aria-hidden="true"
                 />
                 <div className="admin-event-body">
-                  <h5>{evt.title}</h5>
+                  <h3>{evt.title}</h3>
                   <p>
                     {new Date(`${evt.event_date}T00:00:00Z`).toLocaleDateString("en-US", {
                       month: "short",

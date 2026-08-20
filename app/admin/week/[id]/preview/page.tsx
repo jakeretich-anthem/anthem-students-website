@@ -23,41 +23,39 @@ export default async function AdminWeekPreviewPage({ params }: { params: Promise
 
   return (
     <StudentScreen appbar={{ mode: "home", label: "Preview · " + (week.status === "live" ? "Live" : "Draft") }} menu={menu}>
-      <div className="tape">
-        Series: {week.series_name || "—"} · Week {week.series_week_number} of {week.series_week_total}
+      <div className="sectionhead">
+        <span>Series: {week.series_name || "—"}</span>
+        <span>
+          Week {week.series_week_number} of {week.series_week_total}
+        </span>
       </div>
-      <div className="rule" />
 
-      <div className="kicker">This week&rsquo;s big idea</div>
-      <p className="bigidea">{week.big_idea || "—"}</p>
-
-      <div style={{ height: 14 }} />
+      <div>
+        <div className="kicker">This week&rsquo;s big idea</div>
+        <h1 className="bigidea">{week.big_idea || "—"}</h1>
+      </div>
 
       <div className="versecard">
         <div className="versetext">&ldquo;{week.verse_text || "—"}&rdquo;</div>
         <div className="verseref">{week.verse_reference}</div>
       </div>
 
-      <div className="dashrule" />
+      <section className="stack snug">
+        <h2 className="sectionhead ice">Your week</h2>
 
-      <div className="pathhead">
-        <span className="tape" style={{ color: "var(--ice)" }}>
-          Your week
-        </span>
-      </div>
-
-      {days.map((d) => (
-        <Link key={d.day_number} href={`/admin/week/${week.id}/preview/day/${d.day_number}`} className="daycard">
-          <span className="daynum">DAY {d.day_number}</span>
-          <div>
-            <div className="daytitle">{d.title || "Untitled"}</div>
-            <div className="daysub">{d.passage_reference.replace(" · WEB", "")}</div>
-          </div>
-          <span className="chev">›</span>
-        </Link>
-      ))}
-
-      <div style={{ height: 6 }} />
+        <div className="list">
+          {days.map((d) => (
+            <Link key={d.day_number} href={`/admin/week/${week.id}/preview/day/${d.day_number}`} className="daycard">
+              <span className="daynum">DAY {d.day_number}</span>
+              <span>
+                <span className="daytitle">{d.title || "Untitled"}</span>
+                <span className="daysub">{d.passage_reference.replace(" · WEB", "")}</span>
+              </span>
+              <span className="chev">›</span>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <Collapse label="What we talked about">{week.recap || "—"}</Collapse>
 
