@@ -47,6 +47,23 @@ export async function GET() {
   }
 
   const data = parsed as Record<string, unknown>;
+
+  // The Apps Script reports its own failures as {"error": "..."} with a 200,
+  // so this has to be checked explicitly rather than left to res.ok. The
+  // common one is "Unauthorized", which means GAS_SHARED_SECRET here doesn't
+  // match the secret the script expects.
+  if (data && typeof data.error === "string") {
+    const upstream = data.error;
+    console.error("[roster/sheet] Apps Script rejected the request:", upstream);
+    const hint =
+      upstream.toLowerCase().includes("unauth")
+        ? process.env.GAS_SHARED_SECRET
+          ? " GAS_SHARED_SECRET on this server doesn't match the one the Apps Script expects."
+          : " GAS_SHARED_SECRET isn't set on this server."
+        : "";
+    return NextResponse.json({ error: `The Google Sheet rejected the request: ${upstream}.${hint}` }, { status: 502 });
+  }
+
   if (!data || typeof data !== "object" || !data.hs) {
     console.error("[roster/sheet] unexpected payload shape, keys:", Object.keys(data ?? {}));
     return NextResponse.json(
