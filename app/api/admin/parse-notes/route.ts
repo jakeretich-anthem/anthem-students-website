@@ -152,6 +152,16 @@ export async function POST(request: Request) {
         { status: 429 }
       );
     }
+    // A 400 is a malformed request, not a hiccup — retrying sends the exact
+    // same bad request. Log the API's own message so the cause is visible in
+    // the server logs instead of hiding behind a generic "try again".
+    if (err instanceof Anthropic.BadRequestError) {
+      console.error("[parse-notes] rejected request:", err.message);
+      return NextResponse.json(
+        { ok: false, error: "The parser sent a request the API rejected. This one won't fix itself on a retry — start blank and tell Jake." },
+        { status: 502 }
+      );
+    }
     if (err instanceof Anthropic.APIError) {
       console.error(`[parse-notes] API error ${err.status}:`, err.message);
       return NextResponse.json(

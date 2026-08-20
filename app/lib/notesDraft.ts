@@ -21,6 +21,11 @@ export type NotesDraft = {
 // Passed to output_config.format, which constrains the model's response to
 // exactly this shape. additionalProperties:false and a full required list are
 // what make that constraint strict rather than advisory.
+//
+// The three-days rule is NOT expressed here: structured outputs rejects
+// minItems/maxItems above 1 with a 400, which surfaced as a blanket "The API
+// call failed" on every parse. The count is carried by the system prompt
+// ("days: exactly three") and enforced by isWellFormed() in the route.
 export const NOTES_DRAFT_SCHEMA = {
   type: "object",
   properties: {
@@ -30,8 +35,6 @@ export const NOTES_DRAFT_SCHEMA = {
     recap: { type: "string", description: "Two or three sentences on what was talked about." },
     days: {
       type: "array",
-      minItems: 3,
-      maxItems: 3,
       items: {
         type: "object",
         properties: {
