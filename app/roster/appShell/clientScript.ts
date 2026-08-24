@@ -262,37 +262,14 @@ function showResetForm(token) {
   const pw = document.getElementById('gate-reset-password');
   const confirm = document.getElementById('gate-reset-confirm');
   pw.value=''; confirm.value='';
-  wirePasswordRules('gate-reset-password','gate-reset-rules');
   confirm.onkeydown = e => { if (e.key==='Enter') doResetPassword(); };
   pw.focus();
 }
 
 // ── PASSWORD HELPERS ─────────────────────────────────────────
-// Mirrors PASSWORD_RULES in lib/crypto.ts. The server is still the authority —
-// this only saves a round trip and stops the rules being a surprise.
-const PW_RULES = [
-  { label: 'At least 10 characters', test: p => p.length >= 10 },
-  { label: 'An uppercase letter',    test: p => /[A-Z]/.test(p) },
-  { label: 'A lowercase letter',     test: p => /[a-z]/.test(p) },
-  { label: 'A number',               test: p => /\\d/.test(p) },
-];
+// The server is the authority; this only saves a round trip on an empty field.
 function passwordProblem(pw) {
-  const failed = PW_RULES.filter(r => !r.test(pw||''));
-  if (!failed.length) return null;
-  return 'Password needs: ' + failed.map(r => r.label.toLowerCase()).join(', ') + '.';
-}
-function renderPasswordRules(pw, listId) {
-  const list = document.getElementById(listId);
-  if (!list) return;
-  list.innerHTML = PW_RULES.map(r =>
-    '<li class="' + (r.test(pw||'') ? 'met' : '') + '">' + r.label + '</li>'
-  ).join('');
-}
-function wirePasswordRules(inputId, listId) {
-  const input = document.getElementById(inputId);
-  if (!input) return;
-  renderPasswordRules(input.value, listId);
-  input.oninput = () => renderPasswordRules(input.value, listId);
+  return (pw||'') ? null : 'Enter a password.';
 }
 function togglePassword(inputId, btn) {
   const input = document.getElementById(inputId);
@@ -728,7 +705,6 @@ function switchAuthTab(tab) {
   document.getElementById('tab-signup-btn').classList.toggle('active', tab==='signup');
   document.getElementById('auth-modal-title').textContent = tab==='login' ? 'Welcome Back' : 'Request Access';
   ['login-msg','signup-msg'].forEach(id => { const el=document.getElementById(id); el.textContent=''; el.className='auth-msg'; });
-  if (tab==='signup') wirePasswordRules('signup-password','signup-rules');
 }
 
 // ── CHANGE PASSWORD ──────────────────────────────────────────
@@ -744,7 +720,6 @@ function openChangePassword(forced) {
     ? 'This account was set up with a temporary password. Choose your own to continue.'
     : 'Choose a new password for your account';
   document.getElementById('password-modal-close').style.display = forced ? 'none' : '';
-  wirePasswordRules('pw-new','pw-rules');
   openModal('password-modal');
 }
 

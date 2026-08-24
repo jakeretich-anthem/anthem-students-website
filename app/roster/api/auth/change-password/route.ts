@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { kvPut } from "../../../lib/kv";
 import { getSessionUser } from "../../../lib/auth";
-import { hashPassword, validatePasswordStrength, verifyPassword } from "../../../lib/crypto";
+import { describePasswordProblem, hashPassword, verifyPassword } from "../../../lib/crypto";
 
 export async function POST(request: Request) {
   const user = await getSessionUser();
@@ -12,7 +12,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "All fields required" }, { status: 400 });
   }
   if (newPassword !== confirmPassword) return NextResponse.json({ error: "New passwords do not match" }, { status: 400 });
-  if (!validatePasswordStrength(newPassword)) return NextResponse.json({ error: "Weak password" }, { status: 400 });
+  const problem = describePasswordProblem(newPassword);
+  if (problem) return NextResponse.json({ error: problem }, { status: 400 });
   if (!user.passwordHash || !(await verifyPassword(oldPassword, user.passwordHash))) {
     return NextResponse.json({ error: "Old password incorrect" }, { status: 401 });
   }

@@ -221,17 +221,6 @@ body {
 .pw-toggle:hover { color: var(--accent); }
 
 /* Live requirements checklist, so the rules aren't a surprise on submit. */
-.pw-rules { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 5px; text-align: left; }
-.pw-rules li {
-  font-family: 'JetBrains Mono', monospace; font-size: 11px;
-  color: var(--muted); display: flex; align-items: center; gap: 8px;
-  transition: color .2s;
-}
-.pw-rules li::before {
-  content: '○'; font-size: 11px; color: var(--muted); transition: color .2s, content .2s;
-}
-.pw-rules li.met { color: var(--connected); }
-.pw-rules li.met::before { content: '●'; color: var(--connected); }
 
 .auth-link {
   display: block; text-align: center; margin-top: 2px; font-size: 12px;

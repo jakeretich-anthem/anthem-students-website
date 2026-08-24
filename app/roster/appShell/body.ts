@@ -72,7 +72,6 @@ export const HTML_BODY = `
         <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('gate-reset-password',this)">Show</button>
       </div>
       <input id="gate-reset-confirm" class="gate-input" type="password" placeholder="Confirm new password" autocomplete="new-password">
-      <ul class="pw-rules" id="gate-reset-rules"></ul>
       <button class="gate-btn" id="gate-reset-btn" onclick="doResetPassword()">Set password →</button>
       <div class="gate-error" id="gate-reset-error"></div>
     </div>
@@ -640,7 +639,6 @@ export const HTML_BODY = `
           <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('signup-password',this)">Show</button>
         </div>
       </div>
-      <ul class="pw-rules" id="signup-rules"></ul>
       <div class="auth-msg" id="signup-msg"></div>
       <button class="auth-submit" id="signup-submit" onclick="doSignup()">Request Access</button>
       <p class="auth-note">Your request goes to a team admin for approval. You'll get an email once it's approved.</p>
@@ -674,7 +672,6 @@ export const HTML_BODY = `
         </div>
       </div>
       <div class="field"><label>Confirm New Password</label><input type="password" id="pw-confirm" placeholder="Repeat new password" autocomplete="new-password"></div>
-      <ul class="pw-rules" id="pw-rules"></ul>
       <div class="auth-msg" id="pw-msg"></div>
       <button class="auth-submit" id="pw-submit" onclick="doChangePassword()">Update Password</button>
     </div>
