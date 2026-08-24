@@ -938,6 +938,73 @@ input[type=file] { display: none; }
 .dash-kpis-simple .kpi-label { margin-top: 8px; }
 @media (max-width: 480px) { .dash-kpis-simple { grid-template-columns: 1fr; max-width: 300px; } }
 
+/* ── STATS DASHBOARD ──────────────────────────────────────── */
+.dash-section-title {
+  font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: .04em;
+  color: var(--text); margin: 34px 0 14px; display: flex; align-items: baseline; gap: 10px;
+}
+.dash-section-title small {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted);
+}
+/* Headline numbers: tighter than .kpi so eight of them still fit above the fold. */
+.dash-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.dash-tile {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px 18px; transition: border-color .2s;
+}
+.dash-tile:hover { border-color: var(--accent-border); }
+.dash-tile-val { font-family: 'Bebas Neue', sans-serif; font-size: 40px; line-height: 1; color: var(--accent); }
+.dash-tile-val .unit { font-size: 20px; color: var(--text2); margin-left: 2px; }
+.dash-tile-label {
+  font-size: 10px; color: var(--muted); font-family: 'JetBrains Mono', monospace;
+  letter-spacing: .12em; text-transform: uppercase; margin-top: 5px;
+}
+.dash-tile-sub { font-size: 11px; color: var(--text2); margin-top: 6px; }
+
+/* Ranked lists (leaders, students, schools) reuse .dash-bar-* for the fill. */
+.dash-rank-name { flex: 1; min-width: 0; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-rank-medal { width: 18px; flex-shrink: 0; font-size: 12px; text-align: center; }
+
+/* Weekly trend + weekday rhythm columns. */
+.dash-spark { display: flex; align-items: flex-end; gap: 4px; height: 96px; padding-top: 8px; }
+.dash-spark-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 5px; min-width: 0; }
+.dash-spark-bar {
+  width: 100%; background: var(--accent); border-radius: 3px 3px 0 0;
+  min-height: 2px; opacity: .85; transition: height .5s var(--ease);
+}
+.dash-spark-col.peak .dash-spark-bar { opacity: 1; box-shadow: 0 0 0 1px var(--accent-border); }
+.dash-spark-tick {
+  font-size: 9px; color: var(--muted); font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.dash-spark-n { font-size: 11px; color: var(--text2); font-family: 'Bebas Neue', sans-serif; }
+
+/* Birthdays and "needs a hangout" lists. */
+.dash-list-row {
+  display: flex; align-items: center; gap: 10px; padding: 9px 0;
+  border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.dash-list-row:last-child { border-bottom: none; }
+.dash-list-row .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-list-note { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
+.dash-list-note.warn { color: var(--not-connected); }
+.dash-list-note.soon { color: var(--accent); }
+
+/* One-line trivia. Each is a fact the roster can actually prove. */
+.dash-fact { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text2); line-height: 1.5; }
+.dash-fact:last-child { border-bottom: none; }
+.dash-fact-icon { flex-shrink: 0; font-size: 15px; line-height: 1.35; }
+.dash-fact b { color: var(--text); font-weight: 600; }
+
+.dash-empty { color: var(--muted); font-size: 12px; font-family: 'JetBrains Mono', monospace; padding: 6px 0; }
+.dash-note { color: var(--muted); font-size: 11px; margin-top: 10px; font-family: 'JetBrains Mono', monospace; }
+@media (max-width: 560px) {
+  .dash-tiles { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
+  .dash-tile-val { font-size: 32px; }
+  .dash-spark-tick { font-size: 8px; }
+}
+
 /* ── LEADER TOGGLE (admin) ────────────────────────────────── */
 .leader-toggle { display: flex; align-items: center; gap: 7px; cursor: pointer; font-size: 12px; color: var(--text2); font-family: 'JetBrains Mono', monospace; }
 .leader-toggle input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }

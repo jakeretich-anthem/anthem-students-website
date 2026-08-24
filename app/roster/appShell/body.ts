@@ -194,7 +194,6 @@ export const HTML_BODY = `
 
       <!-- HS -->
       <div id="tab-hs" class="tab-panel active" data-print-title="High School">
-        <div class="stats" id="hs-stats"></div>
         <div class="section-header">
           <div class="section-label" id="hs-grid-label">All Students</div>
           <button class="add-btn edit-gated" onclick="openAddModal('hs')" style="display:none">+ Add</button>
@@ -204,7 +203,6 @@ export const HTML_BODY = `
 
       <!-- MS -->
       <div id="tab-ms" class="tab-panel" data-print-title="Middle School">
-        <div class="stats" id="ms-stats"></div>
         <div class="section-header">
           <div class="section-label" id="ms-grid-label">All Students</div>
           <button class="add-btn edit-gated" onclick="openAddModal('ms')" style="display:none">+ Add</button>
