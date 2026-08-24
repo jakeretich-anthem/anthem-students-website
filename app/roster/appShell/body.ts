@@ -132,10 +132,16 @@ export const HTML_BODY = `
           <select class="filter-select" id="filter-school" onchange="applyFilters()">
             <option value="">All Schools</option>
           </select>
+          <select class="filter-select" id="filter-status" onchange="applyFilters()">
+            <option value="">All Connection Statuses</option>
+            <option value="core">Core</option>
+            <option value="loose">Loosely Connected</option>
+            <option value="fringe">Fringe</option>
+          </select>
           <select class="filter-select" id="filter-connected" onchange="applyFilters()">
-            <option value="">All Status</option>
+            <option value="">Connected or Not</option>
             <option value="connected">Family Connected With</option>
-            <option value="not-connected">Needs Connection</option>
+            <option value="not-connected">Not Connected</option>
           </select>
           <select class="filter-select" id="filter-sort" onchange="applyFilters()">
             <option value="">Default Order</option>
@@ -143,6 +149,7 @@ export const HTML_BODY = `
             <option value="name-desc">Name Z → A</option>
             <option value="grade-asc">Grade Low → High</option>
             <option value="grade-desc">Grade High → Low</option>
+            <option value="status-asc">Core → Fringe</option>
             <option value="interactions-desc">Most Interactions</option>
             <option value="interactions-asc">Fewest Interactions</option>
           </select>
@@ -158,44 +165,20 @@ export const HTML_BODY = `
       <div id="tab-hs" class="tab-panel active" data-print-title="High School">
         <div class="stats" id="hs-stats"></div>
         <div class="section-header">
-          <div class="section-label">⚡ Core</div>
-          <button class="add-btn edit-gated" onclick="openAddModal('hs','core')" style="display:none">+ Add</button>
+          <div class="section-label" id="hs-grid-label">All Students</div>
+          <button class="add-btn edit-gated" onclick="openAddModal('hs')" style="display:none">+ Add</button>
         </div>
-        <div class="roster-grid" id="hs-core-grid"></div>
-        <div class="sect-divider"></div>
-        <div class="section-header">
-          <div class="section-label">🔗 Loosely Connected</div>
-          <button class="add-btn edit-gated" onclick="openAddModal('hs','loose')" style="display:none">+ Add</button>
-        </div>
-        <div class="roster-grid" id="hs-loose-grid"></div>
-        <div class="sect-divider"></div>
-        <div class="section-header">
-          <div class="section-label">🌙 Fringe</div>
-          <button class="add-btn edit-gated" onclick="openAddModal('hs','fringe')" style="display:none">+ Add</button>
-        </div>
-        <div class="roster-grid" id="hs-fringe-grid"></div>
+        <div class="roster-grid" id="hs-grid"></div>
       </div>
 
       <!-- MS -->
       <div id="tab-ms" class="tab-panel" data-print-title="Middle School">
         <div class="stats" id="ms-stats"></div>
         <div class="section-header">
-          <div class="section-label">⚡ Core</div>
-          <button class="add-btn edit-gated" onclick="openAddModal('ms','core')" style="display:none">+ Add</button>
+          <div class="section-label" id="ms-grid-label">All Students</div>
+          <button class="add-btn edit-gated" onclick="openAddModal('ms')" style="display:none">+ Add</button>
         </div>
-        <div class="roster-grid" id="ms-core-grid"></div>
-        <div class="sect-divider"></div>
-        <div class="section-header">
-          <div class="section-label">🔗 Loosely Connected</div>
-          <button class="add-btn edit-gated" onclick="openAddModal('ms','loose')" style="display:none">+ Add</button>
-        </div>
-        <div class="roster-grid" id="ms-loose-grid"></div>
-        <div class="sect-divider"></div>
-        <div class="section-header">
-          <div class="section-label">🌙 Fringe</div>
-          <button class="add-btn edit-gated" onclick="openAddModal('ms','fringe')" style="display:none">+ Add</button>
-        </div>
-        <div class="roster-grid" id="ms-fringe-grid"></div>
+        <div class="roster-grid" id="ms-grid"></div>
       </div>
 
       <footer>Worship Grow Go · Anthem Students <span id="year-footer">2026</span></footer>
@@ -647,24 +630,24 @@ export const HTML_BODY = `
     </div>
     <div class="field-row">
       <div class="field"><label>School</label><input type="text" id="ef-school" placeholder="School name"></div>
-      <div class="field" id="ef-section-field">
-        <label>Section</label>
-        <select id="ef-section">
+      <div class="field" id="ef-status-field">
+        <label>Connection Status</label>
+        <select id="ef-status">
           <option value="core">Core</option>
           <option value="loose">Loosely Connected</option>
           <option value="fringe">Fringe</option>
         </select>
       </div>
     </div>
-    <div class="field"><label>Interest / Sport</label><input type="text" id="ef-interest" placeholder="Soccer, Guitar…"></div>
     <div class="field"><label>Primary Goal</label><input type="text" id="ef-primary-goal" placeholder="e.g. Get plugged into a community group"></div>
     <div class="field"><label>Notes</label><input type="text" id="ef-notes" placeholder="Optional notes"></div>
     <div class="field" id="ef-connected-field">
-      <label>Connection Status</label>
+      <label>Connected This Quarter?</label>
       <div class="connected-toggle" id="ef-connected-toggle" onclick="toggleConnected()">
         <div class="toggle-dot"></div>
-        <span class="toggle-label">Needs Connection</span>
+        <span class="toggle-label">Not Connected</span>
       </div>
+      <div class="field-hint" id="ef-connected-hint">Turning this on stamps today as the parent connection date.</div>
     </div>
     <div class="modal-actions">
       <button class="btn-save" id="ef-save-btn" onclick="saveEdit()">Save Changes</button>
