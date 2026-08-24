@@ -218,7 +218,7 @@ export const HTML_BODY = `
   <div id="nav-dashboard" class="nav-panel" style="display:none">
     <div class="container">
       <header>
-        <div class="logo-line" style="font-size:clamp(40px,8vw,72px)">Stats <span>Dashboard</span></div>
+        <div class="logo-line" style="font-size:clamp(40px,8vw,72px)">Stats For <span>Nerds</span></div>
         <div class="subtitle">Roster at a glance</div>
       </header>
       <div id="dashboard-content">
