@@ -1,46 +1,42 @@
 import { NextResponse } from "next/server";
 import { requirePermission } from "../../../lib/auth";
-import { denormalizeFields, type SheetKey } from "../../../lib/sheetSchema";
 
-// Reads are translated out of the Apps Script's scrambled column mapping
-// (app/roster/lib/sheetSchema.ts), so writes have to be translated back into
-// it or an edit would land in the neighbouring column. The two mappings are
-// exact inverses — see the note at the top of sheetSchema.ts.
-function translatePayload(raw: string | null): string | null {
-  if (!raw) return raw;
+// Every action here mutates the sheet, so this is POST-only. It used to be a
+// GET that forwarded its query string to the Apps Script untouched, which made
+// `?action=delete` reachable by navigation — and because the session cookie is
+// SameSite=Lax (sent on top-level cross-site GETs), a leader clicking a crafted
+// link would delete a student row. A cross-site POST gets no cookie at all.
+//
+// The Apps Script writes back through the same header lookup it reads with, so
+// the payload still goes through untouched. (This used to run every field
+// through denormalizeFields() to undo the compat layer's renames — see the
+// deleted app/roster/lib/sheetSchema.ts.)
 
-  let payload: Record<string, unknown>;
-  try {
-    payload = JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    return raw; // not ours to rewrite; forward untouched
-  }
+// Allowlisted server-side rather than trusted from the caller: the Apps Script
+// also answers to `read` and the three no-op *Interaction actions, and there is
+// no reason for this route to be able to reach any of them.
+const ALLOWED_ACTIONS = new Set(["add", "update", "delete"]);
 
-  const sheet = payload.sheet;
-  if (sheet !== "hs" && sheet !== "ms") return raw;
-  const sk = sheet as SheetKey;
-
-  // action=update sends `fields`; action=add sends `person`.
-  if (payload.fields && typeof payload.fields === "object") {
-    payload.fields = denormalizeFields(sk, payload.fields as Record<string, unknown>);
-  }
-  if (payload.person && typeof payload.person === "object") {
-    payload.person = denormalizeFields(sk, payload.person as Record<string, unknown>);
-  }
-
-  return JSON.stringify(payload);
-}
-
-export async function GET(request: Request) {
+export async function POST(request: Request) {
   const perm = await requirePermission("roster", "edit");
   if (!perm.ok) return NextResponse.json({ error: perm.error }, { status: perm.status });
 
   const scriptUrl = process.env.GOOGLE_SCRIPT_URL;
   if (!scriptUrl) return NextResponse.json({ error: "GOOGLE_SCRIPT_URL not set" }, { status: 500 });
+
+  let params: URLSearchParams;
   try {
-    const params = new URL(request.url).searchParams;
-    const translated = translatePayload(params.get("payload"));
-    if (translated !== null) params.set("payload", translated);
+    params = new URLSearchParams(await request.text());
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  const action = params.get("action") || "";
+  if (!ALLOWED_ACTIONS.has(action)) {
+    return NextResponse.json({ error: `Unsupported action: ${action || "(none)"}` }, { status: 400 });
+  }
+
+  try {
     if (process.env.GAS_SHARED_SECRET) params.set("_s", process.env.GAS_SHARED_SECRET);
     const res = await fetch(scriptUrl + "?" + params.toString());
     const text = await res.text();

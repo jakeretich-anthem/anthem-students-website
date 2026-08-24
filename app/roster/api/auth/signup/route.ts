@@ -1,25 +1,51 @@
 import { NextResponse } from "next/server";
 import { kvGet, kvPut } from "../../../lib/kv";
 import { listAdmins, type RosterUser } from "../../../lib/auth";
-import { generateToken, hashPassword, hashToken, validatePasswordStrength } from "../../../lib/crypto";
-import { sendEmail } from "../../../lib/email";
+import { describePasswordProblem, generateToken, hashPassword, hashToken } from "../../../lib/crypto";
+import { emailLayout, sendEmail } from "../../../lib/email";
+import { escapeHtml } from "../../../lib/html";
+import { siteOrigin } from "../../../lib/origin";
+import { checkRateLimit, clientKey, tooManyRequests } from "../../../lib/rateLimit";
 
 const SIGNUP_ACTION_TTL = 14 * 24 * 60 * 60; // 14 days — admin may not check email right away
 
 export async function POST(request: Request) {
+  const ip = clientKey(request);
+  if (ip) {
+    // A whole group of new leaders signing up together at one meeting shares
+    // one wifi IP, so this is set well above a plausible real batch.
+    const limit = await checkRateLimit("signup", `ip:${ip}`, 15, 60 * 60);
+    if (!limit.ok) {
+      return tooManyRequests("Too many requests from this device. Please try again later.", limit.retryAfter);
+    }
+  }
+
   const { email, password, name } = await request.json();
   if (!email || !password || !name) return NextResponse.json({ error: "All fields required" }, { status: 400 });
-  if (!validatePasswordStrength(password)) {
-    return NextResponse.json({ error: "Use 10+ chars with upper/lowercase and number" }, { status: 400 });
-  }
+
+  const problem = describePasswordProblem(password);
+  if (problem) return NextResponse.json({ error: problem }, { status: 400 });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "Invalid email" }, { status: 400 });
 
-  const lower = String(email).toLowerCase();
-  if (await kvGet(`user:${lower}`)) return NextResponse.json({ error: "Account already exists" }, { status: 409 });
+  const lower = String(email).trim().toLowerCase();
+  const cleanName = String(name).trim();
+
+  const existing = await kvGet<RosterUser>(`user:${lower}`);
+  if (existing) {
+    // Their own request, still waiting — say so rather than "account already
+    // exists", which reads as an error they need to fix.
+    if (existing.role === "pending" || existing.status === "pending_approval") {
+      return NextResponse.json(
+        { error: "You already have a request waiting for approval. We'll email you once it's reviewed." },
+        { status: 409 }
+      );
+    }
+    return NextResponse.json({ error: "An account with that email already exists. Try signing in." }, { status: 409 });
+  }
 
   const user: RosterUser = {
     email: lower,
-    name,
+    name: cleanName,
     passwordHash: await hashPassword(password),
     role: "pending",
     status: "pending_approval",
@@ -31,31 +57,33 @@ export async function POST(request: Request) {
   const tokenHash = await hashToken(raw);
   await kvPut(`signupAction:${tokenHash}`, { email: lower, createdAt: Date.now() }, SIGNUP_ACTION_TTL);
 
-  const origin = new URL(request.url).origin;
-  const approveUrl = `${origin}/roster/api/admin/request/approve?token=${raw}`;
-  const declineUrl = `${origin}/roster/api/admin/request/decline?token=${raw}`;
+  // Points at the review page, not straight at approve/decline — see
+  // api/admin/request/review. A link in an inbox gets followed by things that
+  // aren't the recipient, and declining now deletes the request for good.
+  const reviewUrl = `${siteOrigin(request)}/roster/api/admin/request/review?token=${raw}`;
 
   const admins = await listAdmins();
   await Promise.all(
     admins.map((a) =>
       sendEmail({
         to: a.email,
-        subject: "New Account Request Pending Approval",
-        html: `
-<p>Someone is requesting leader access to the ASM Roster.</p>
-<p><b>Name:</b> ${name}<br><b>Email:</b> ${email}<br><b>Requested:</b> ${new Date().toLocaleString()}</p>
-<table cellpadding="0" cellspacing="0" style="margin-top:20px"><tr>
-  <td style="padding-right:12px">
-    <a href="${approveUrl}" style="display:inline-block;padding:12px 22px;background:#1a7f37;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-family:sans-serif">Approve →</a>
-  </td>
-  <td>
-    <a href="${declineUrl}" style="display:inline-block;padding:12px 22px;background:#b91c1c;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-family:sans-serif">Decline</a>
-  </td>
-</tr></table>
-<p style="margin-top:20px;color:#888;font-size:12px">You can also manage this from Adminland inside the app. This link expires in 14 days.</p>`,
+        subject: `Leader access request — ${cleanName}`,
+        html: emailLayout({
+          heading: "Someone is requesting leader access",
+          body: `<p style="margin:0 0 8px"><b>Name:</b> ${escapeHtml(cleanName)}</p>
+<p style="margin:0 0 8px"><b>Email:</b> ${escapeHtml(lower)}</p>
+<p style="margin:0"><b>Requested:</b> ${escapeHtml(new Date().toLocaleString("en-US"))}</p>
+<p style="margin:18px 0 0">Open the review page to approve or decline this request.</p>`,
+          button: { label: "Review request →", url: reviewUrl },
+          footer:
+            "Nothing happens until you choose on that page. Approving grants leader access and emails them; declining deletes the request and tells them nothing. This link expires in 14 days.",
+        }),
       })
     )
   );
 
-  return NextResponse.json({ success: true, message: "Account request submitted for approval." });
+  return NextResponse.json({
+    success: true,
+    message: "Request sent. You'll get an email as soon as it's approved.",
+  });
 }

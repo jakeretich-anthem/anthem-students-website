@@ -39,10 +39,42 @@ export const HTML_BODY = `
         <span class="form-title">Leader Login</span>
       </div>
       <input id="gate-leader-email" class="gate-input" type="email" placeholder="Email" autocomplete="email">
-      <input id="gate-leader-password" class="gate-input" type="password" placeholder="Password" autocomplete="current-password">
+      <div class="pw-wrap">
+        <input id="gate-leader-password" class="gate-input" type="password" placeholder="Password" autocomplete="current-password">
+        <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('gate-leader-password',this)">Show</button>
+      </div>
       <button class="gate-btn" id="gate-leader-btn" onclick="doGateLeaderLogin()">Sign In →</button>
       <div class="gate-error" id="gate-leader-error"></div>
-      <a class="gate-link" href="#" onclick="event.preventDefault();openAuthModal('signup')">New leader? Sign up</a>
+      <a class="gate-link" href="#" onclick="event.preventDefault();showForgotForm()">Forgot your password?</a>
+      <a class="gate-link" href="#" onclick="event.preventDefault();openAuthModal('signup')">New leader? Request access</a>
+    </div>
+
+    <!-- Forgot-password sub-form -->
+    <div class="gate-form" id="gate-forgot-form" style="display:none">
+      <div class="gate-form-back">
+        <button class="back-btn" onclick="showLeaderForm()">← Back</button>
+        <span class="form-title">Reset Password</span>
+      </div>
+      <p class="gate-hint">Enter the email you sign in with and we'll send you a link to set a new password. The link lasts 30 minutes.</p>
+      <input id="gate-forgot-email" class="gate-input" type="email" placeholder="Email" autocomplete="email">
+      <button class="gate-btn" id="gate-forgot-btn" onclick="doForgotPassword()">Send reset link →</button>
+      <div class="gate-error" id="gate-forgot-error"></div>
+    </div>
+
+    <!-- Set-new-password sub-form (shown when the page opens with ?resetToken=) -->
+    <div class="gate-form" id="gate-reset-form" style="display:none">
+      <div class="gate-form-back">
+        <button class="back-btn" onclick="showLeaderForm()">← Back</button>
+        <span class="form-title">Choose a New Password</span>
+      </div>
+      <div class="pw-wrap">
+        <input id="gate-reset-password" class="gate-input" type="password" placeholder="New password" autocomplete="new-password">
+        <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('gate-reset-password',this)">Show</button>
+      </div>
+      <input id="gate-reset-confirm" class="gate-input" type="password" placeholder="Confirm new password" autocomplete="new-password">
+      <ul class="pw-rules" id="gate-reset-rules"></ul>
+      <button class="gate-btn" id="gate-reset-btn" onclick="doResetPassword()">Set password →</button>
+      <div class="gate-error" id="gate-reset-error"></div>
     </div>
 
     <a class="gate-need-access" href="#" onclick="event.preventDefault();openAuthModal('signup')">Need access? →</a>
@@ -132,10 +164,16 @@ export const HTML_BODY = `
           <select class="filter-select" id="filter-school" onchange="applyFilters()">
             <option value="">All Schools</option>
           </select>
+          <select class="filter-select" id="filter-status" onchange="applyFilters()">
+            <option value="">All Connection Statuses</option>
+            <option value="core">Core</option>
+            <option value="loose">Loosely Connected</option>
+            <option value="fringe">Fringe</option>
+          </select>
           <select class="filter-select" id="filter-connected" onchange="applyFilters()">
-            <option value="">All Status</option>
+            <option value="">Connected or Not</option>
             <option value="connected">Family Connected With</option>
-            <option value="not-connected">Needs Connection</option>
+            <option value="not-connected">Not Connected</option>
           </select>
           <select class="filter-select" id="filter-sort" onchange="applyFilters()">
             <option value="">Default Order</option>
@@ -143,6 +181,7 @@ export const HTML_BODY = `
             <option value="name-desc">Name Z → A</option>
             <option value="grade-asc">Grade Low → High</option>
             <option value="grade-desc">Grade High → Low</option>
+            <option value="status-asc">Core → Fringe</option>
             <option value="interactions-desc">Most Interactions</option>
             <option value="interactions-asc">Fewest Interactions</option>
           </select>
@@ -158,44 +197,20 @@ export const HTML_BODY = `
       <div id="tab-hs" class="tab-panel active" data-print-title="High School">
         <div class="stats" id="hs-stats"></div>
         <div class="section-header">
-          <div class="section-label">⚡ Core</div>
-          <button class="add-btn edit-gated" onclick="openAddModal('hs','core')" style="display:none">+ Add</button>
+          <div class="section-label" id="hs-grid-label">All Students</div>
+          <button class="add-btn edit-gated" onclick="openAddModal('hs')" style="display:none">+ Add</button>
         </div>
-        <div class="roster-grid" id="hs-core-grid"></div>
-        <div class="sect-divider"></div>
-        <div class="section-header">
-          <div class="section-label">🔗 Loosely Connected</div>
-          <button class="add-btn edit-gated" onclick="openAddModal('hs','loose')" style="display:none">+ Add</button>
-        </div>
-        <div class="roster-grid" id="hs-loose-grid"></div>
-        <div class="sect-divider"></div>
-        <div class="section-header">
-          <div class="section-label">🌙 Fringe</div>
-          <button class="add-btn edit-gated" onclick="openAddModal('hs','fringe')" style="display:none">+ Add</button>
-        </div>
-        <div class="roster-grid" id="hs-fringe-grid"></div>
+        <div class="roster-grid" id="hs-grid"></div>
       </div>
 
       <!-- MS -->
       <div id="tab-ms" class="tab-panel" data-print-title="Middle School">
         <div class="stats" id="ms-stats"></div>
         <div class="section-header">
-          <div class="section-label">⚡ Core</div>
-          <button class="add-btn edit-gated" onclick="openAddModal('ms','core')" style="display:none">+ Add</button>
+          <div class="section-label" id="ms-grid-label">All Students</div>
+          <button class="add-btn edit-gated" onclick="openAddModal('ms')" style="display:none">+ Add</button>
         </div>
-        <div class="roster-grid" id="ms-core-grid"></div>
-        <div class="sect-divider"></div>
-        <div class="section-header">
-          <div class="section-label">🔗 Loosely Connected</div>
-          <button class="add-btn edit-gated" onclick="openAddModal('ms','loose')" style="display:none">+ Add</button>
-        </div>
-        <div class="roster-grid" id="ms-loose-grid"></div>
-        <div class="sect-divider"></div>
-        <div class="section-header">
-          <div class="section-label">🌙 Fringe</div>
-          <button class="add-btn edit-gated" onclick="openAddModal('ms','fringe')" style="display:none">+ Add</button>
-        </div>
-        <div class="roster-grid" id="ms-fringe-grid"></div>
+        <div class="roster-grid" id="ms-grid"></div>
       </div>
 
       <footer>Worship Grow Go · Anthem Students <span id="year-footer">2026</span></footer>
@@ -606,16 +621,62 @@ export const HTML_BODY = `
     </div>
     <div id="auth-login-form" class="auth-form">
       <div class="field"><label>Email</label><input type="email" id="login-email" placeholder="you@example.com" autocomplete="email"></div>
-      <div class="field"><label>Password</label><input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"></div>
+      <div class="field"><label>Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+          <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('login-password',this)">Show</button>
+        </div>
+      </div>
       <div class="auth-msg" id="login-msg"></div>
       <button class="auth-submit" id="login-submit" onclick="doLogin()">Log In</button>
+      <a class="auth-link" href="#" onclick="event.preventDefault();closeAuthModal();showForgotForm()">Forgot your password?</a>
     </div>
     <div id="auth-signup-form" class="auth-form" style="display:none">
       <div class="field"><label>Full Name</label><input type="text" id="signup-name" placeholder="First Last" autocomplete="name"></div>
       <div class="field"><label>Email</label><input type="email" id="signup-email" placeholder="you@example.com" autocomplete="email"></div>
-      <div class="field"><label>Password</label><input type="password" id="signup-password" placeholder="Min 8 characters" autocomplete="new-password"></div>
+      <div class="field"><label>Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="signup-password" placeholder="Create a password" autocomplete="new-password">
+          <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('signup-password',this)">Show</button>
+        </div>
+      </div>
+      <ul class="pw-rules" id="signup-rules"></ul>
       <div class="auth-msg" id="signup-msg"></div>
-      <button class="auth-submit" id="signup-submit" onclick="doSignup()">Create Account</button>
+      <button class="auth-submit" id="signup-submit" onclick="doSignup()">Request Access</button>
+      <p class="auth-note">Your request goes to a team admin for approval. You'll get an email once it's approved.</p>
+    </div>
+    <div id="auth-signup-done" class="auth-done" style="display:none">
+      <div class="auth-done-icon">✓</div>
+      <div class="auth-done-title">Request sent</div>
+      <p class="auth-done-body" id="auth-done-body">A team admin will review it. You'll get an email as soon as it's approved.</p>
+      <button class="auth-submit" onclick="closeAuthModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHANGE PASSWORD -->
+<div class="modal-overlay" id="password-modal">
+  <div class="modal">
+    <button class="modal-close" id="password-modal-close" onclick="closeModal('password-modal')">✕</button>
+    <div class="modal-title" id="password-modal-title">Change Password</div>
+    <div class="modal-sub" id="password-modal-sub">Choose a new password for your account</div>
+    <div class="auth-form">
+      <div class="field"><label>Current Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="pw-old" placeholder="••••••••" autocomplete="current-password">
+          <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('pw-old',this)">Show</button>
+        </div>
+      </div>
+      <div class="field"><label>New Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="pw-new" placeholder="New password" autocomplete="new-password">
+          <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('pw-new',this)">Show</button>
+        </div>
+      </div>
+      <div class="field"><label>Confirm New Password</label><input type="password" id="pw-confirm" placeholder="Repeat new password" autocomplete="new-password"></div>
+      <ul class="pw-rules" id="pw-rules"></ul>
+      <div class="auth-msg" id="pw-msg"></div>
+      <button class="auth-submit" id="pw-submit" onclick="doChangePassword()">Update Password</button>
     </div>
   </div>
 </div>
@@ -647,24 +708,24 @@ export const HTML_BODY = `
     </div>
     <div class="field-row">
       <div class="field"><label>School</label><input type="text" id="ef-school" placeholder="School name"></div>
-      <div class="field" id="ef-section-field">
-        <label>Section</label>
-        <select id="ef-section">
+      <div class="field" id="ef-status-field">
+        <label>Connection Status</label>
+        <select id="ef-status">
           <option value="core">Core</option>
           <option value="loose">Loosely Connected</option>
           <option value="fringe">Fringe</option>
         </select>
       </div>
     </div>
-    <div class="field"><label>Interest / Sport</label><input type="text" id="ef-interest" placeholder="Soccer, Guitar…"></div>
     <div class="field"><label>Primary Goal</label><input type="text" id="ef-primary-goal" placeholder="e.g. Get plugged into a community group"></div>
     <div class="field"><label>Notes</label><input type="text" id="ef-notes" placeholder="Optional notes"></div>
     <div class="field" id="ef-connected-field">
-      <label>Connection Status</label>
+      <label>Connected This Quarter?</label>
       <div class="connected-toggle" id="ef-connected-toggle" onclick="toggleConnected()">
         <div class="toggle-dot"></div>
-        <span class="toggle-label">Needs Connection</span>
+        <span class="toggle-label">Not Connected</span>
       </div>
+      <div class="field-hint" id="ef-connected-hint">Turning this on stamps today as the parent connection date.</div>
     </div>
     <div class="modal-actions">
       <button class="btn-save" id="ef-save-btn" onclick="saveEdit()">Save Changes</button>
@@ -705,6 +766,7 @@ export const HTML_BODY = `
     </div>
     <div class="modal-actions">
       <button class="btn-save" onclick="saveProfile()">Save Profile</button>
+      <button class="btn-secondary" onclick="closeProfileModal();openChangePassword(false)">Change Password</button>
       <button class="btn-secondary" onclick="closeProfileModal()">Cancel</button>
       <button class="btn-danger" onclick="logout()">Log Out</button>
     </div>

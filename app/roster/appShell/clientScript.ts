@@ -4,15 +4,16 @@ export const APP_JS = `
 // ── STATE ───────────────────────────────────────────────────
 let currentUser = null;
 let canEdit = false;
-let DATA = { hs:{core:[],loose:[],fringe:[]}, ms:{core:[],loose:[],fringe:[]} };
+let DATA = { hs:{students:[]}, ms:{students:[]} };
 let currentStudentKey = null;
-let editState = { mode:'add', sk:'hs', section:'core', index:-1 };
+let editState = { mode:'add', sk:'hs', index:-1 };
 let connectedVal = false;
 let interactionKey = null;
 let editInteractionContext = null;
 let pendingDeleteInteraction = null;
 let currentInteractions = [];
 let toastTimer = null;
+let resetToken = null;        // held in memory only; stripped from the URL on boot
 
 // ── ORG SETTINGS ────────────────────────────────────────────
 let orgSettings = null;       // loaded from /api/settings/public on boot
@@ -185,12 +186,35 @@ async function initGate() {
   showLanes();
 }
 
-function showLanes() {
-  const lf = document.getElementById('gate-leader-form');
-  const pf = document.getElementById('gate-passcode-form');
+// Every gate sub-form lives in the DOM at once and is toggled by display, so
+// switching between them means hiding all of them first.
+const GATE_FORMS = ['gate-passcode-form','gate-leader-form','gate-forgot-form','gate-reset-form'];
+function hideGateForms() {
+  GATE_FORMS.forEach(id => { const el=document.getElementById(id); if (el) el.style.display='none'; });
+}
+function openGateForm(id) {
   const la = document.getElementById('gate-lanes');
-  if (lf) lf.style.display = 'none';
-  if (pf) pf.style.display = 'none';
+  if (la) la.style.display = 'none';
+  hideGateForms();
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'flex';
+  return el;
+}
+function clearGateMsg(id) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent=''; el.className='gate-error'; }
+}
+// tone: '' (error, the default red), 'info' or 'ok'
+function setGateMsg(id, text, tone) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'gate-error' + (tone ? ' ' + tone : '');
+}
+
+function showLanes() {
+  hideGateForms();
+  const la = document.getElementById('gate-lanes');
   if (la) la.style.display = 'flex';
   // Hide passcode lane if access mode is leaders-only
   const passcodeLane = document.getElementById('gate-lane-passcode');
@@ -201,19 +225,129 @@ function showLanes() {
 }
 
 function showPasscodeForm() {
-  document.getElementById('gate-lanes').style.display = 'none';
-  const pf = document.getElementById('gate-passcode-form');
-  pf.style.display = 'flex';
-  document.getElementById('gate-input').focus();
-  document.getElementById('gate-input').onkeydown = e => { if (e.key==='Enter') checkPasscode(); };
+  openGateForm('gate-passcode-form');
+  clearGateMsg('gate-error');
+  const input = document.getElementById('gate-input');
+  input.focus();
+  input.onkeydown = e => { if (e.key==='Enter') checkPasscode(); };
 }
 
 function showLeaderForm() {
-  document.getElementById('gate-lanes').style.display = 'none';
-  const lf = document.getElementById('gate-leader-form');
-  lf.style.display = 'flex';
-  document.getElementById('gate-leader-email').focus();
-  document.getElementById('gate-leader-password').onkeydown = e => { if (e.key==='Enter') doGateLeaderLogin(); };
+  openGateForm('gate-leader-form');
+  clearGateMsg('gate-leader-error');
+  const email = document.getElementById('gate-leader-email');
+  const pw = document.getElementById('gate-leader-password');
+  email.focus();
+  // Enter submits from either field — previously only the password did.
+  email.onkeydown = e => { if (e.key==='Enter') doGateLeaderLogin(); };
+  pw.onkeydown = e => { if (e.key==='Enter') doGateLeaderLogin(); };
+}
+
+function showForgotForm() {
+  openGateForm('gate-forgot-form');
+  clearGateMsg('gate-forgot-error');
+  // Carry over whatever they already typed on the sign-in form.
+  const typed = (document.getElementById('gate-leader-email')||{}).value || '';
+  const input = document.getElementById('gate-forgot-email');
+  if (typed && !input.value) input.value = typed;
+  input.focus();
+  input.onkeydown = e => { if (e.key==='Enter') doForgotPassword(); };
+}
+
+function showResetForm(token) {
+  showScreen('gate');
+  resetToken = token;
+  openGateForm('gate-reset-form');
+  clearGateMsg('gate-reset-error');
+  const pw = document.getElementById('gate-reset-password');
+  const confirm = document.getElementById('gate-reset-confirm');
+  pw.value=''; confirm.value='';
+  wirePasswordRules('gate-reset-password','gate-reset-rules');
+  confirm.onkeydown = e => { if (e.key==='Enter') doResetPassword(); };
+  pw.focus();
+}
+
+// ── PASSWORD HELPERS ─────────────────────────────────────────
+// Mirrors PASSWORD_RULES in lib/crypto.ts. The server is still the authority —
+// this only saves a round trip and stops the rules being a surprise.
+const PW_RULES = [
+  { label: 'At least 10 characters', test: p => p.length >= 10 },
+  { label: 'An uppercase letter',    test: p => /[A-Z]/.test(p) },
+  { label: 'A lowercase letter',     test: p => /[a-z]/.test(p) },
+  { label: 'A number',               test: p => /\\d/.test(p) },
+];
+function passwordProblem(pw) {
+  const failed = PW_RULES.filter(r => !r.test(pw||''));
+  if (!failed.length) return null;
+  return 'Password needs: ' + failed.map(r => r.label.toLowerCase()).join(', ') + '.';
+}
+function renderPasswordRules(pw, listId) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  list.innerHTML = PW_RULES.map(r =>
+    '<li class="' + (r.test(pw||'') ? 'met' : '') + '">' + r.label + '</li>'
+  ).join('');
+}
+function wirePasswordRules(inputId, listId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  renderPasswordRules(input.value, listId);
+  input.oninput = () => renderPasswordRules(input.value, listId);
+}
+function togglePassword(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.textContent = show ? 'Hide' : 'Show';
+  btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+}
+
+async function doForgotPassword() {
+  const email = ((document.getElementById('gate-forgot-email')||{}).value||'').trim().toLowerCase();
+  const btn = document.getElementById('gate-forgot-btn');
+  if (!email) { setGateMsg('gate-forgot-error','Enter your email address.'); return; }
+  btn.disabled=true; btn.textContent='Sending…'; clearGateMsg('gate-forgot-error');
+  try {
+    const res = await fetch('/roster/api/auth/forgot-password', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email}),
+    });
+    const data = await res.json();
+    if (res.status === 429) setGateMsg('gate-forgot-error', data.error||'Too many requests. Try again later.');
+    // The server answers the same way whether or not the account exists, so
+    // this message can't be used to find out who has an account.
+    else setGateMsg('gate-forgot-error', data.message||'If that account exists, a reset link is on its way.', 'ok');
+  } catch(_) { setGateMsg('gate-forgot-error','Network error. Please try again.'); }
+  btn.disabled=false; btn.textContent='Send reset link →';
+}
+
+async function doResetPassword() {
+  const pw = (document.getElementById('gate-reset-password')||{}).value||'';
+  const confirm = (document.getElementById('gate-reset-confirm')||{}).value||'';
+  const btn = document.getElementById('gate-reset-btn');
+  const problem = passwordProblem(pw);
+  if (problem) { setGateMsg('gate-reset-error', problem); return; }
+  if (pw !== confirm) { setGateMsg('gate-reset-error', "Those passwords don't match."); return; }
+
+  btn.disabled=true; btn.textContent='Saving…'; clearGateMsg('gate-reset-error');
+  try {
+    const res = await fetch('/roster/api/auth/reset-password', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({token: resetToken, newPassword: pw, confirmPassword: confirm}),
+    });
+    const data = await res.json();
+    if (data.success) {
+      resetToken = null;
+      showLeaderForm();
+      if (data.email) document.getElementById('gate-leader-email').value = data.email;
+      setGateMsg('gate-leader-error','Password updated. Sign in with your new password.','ok');
+      showToast('✓ Password updated','ok');
+    } else {
+      setGateMsg('gate-reset-error', data.error||'Could not reset your password.');
+    }
+  } catch(_) { setGateMsg('gate-reset-error','Network error. Please try again.'); }
+  btn.disabled=false; btn.textContent='Set password →';
 }
 
 async function checkPasscode() {
@@ -241,12 +375,11 @@ async function checkPasscode() {
 }
 
 async function doGateLeaderLogin() {
-  const email = (document.getElementById('gate-leader-email')||{}).value?.trim()||'';
+  const email = ((document.getElementById('gate-leader-email')||{}).value||'').trim().toLowerCase();
   const password = (document.getElementById('gate-leader-password')||{}).value||'';
   const btn = document.getElementById('gate-leader-btn');
-  const err = document.getElementById('gate-leader-error');
-  if (!email||!password) { err.textContent='Please fill in all fields.'; return; }
-  btn.disabled=true; btn.textContent='Signing in…'; err.textContent='';
+  if (!email||!password) { setGateMsg('gate-leader-error','Please fill in all fields.'); return; }
+  btn.disabled=true; btn.textContent='Signing in…'; clearGateMsg('gate-leader-error');
   try {
     const res = await fetch('/roster/api/auth/login', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -255,13 +388,26 @@ async function doGateLeaderLogin() {
     const data = await res.json();
     if (data.success) {
       currentUser = data.user; canEdit = ['approved','admin','leader'].includes(currentUser.role);
-      initApp();
+      await afterLogin();
       showToast('Welcome back, '+currentUser.name+'!', 'ok');
     } else {
-      err.textContent = data.error || 'Login failed.';
+      // A pending account isn't a failed sign-in — the password was right, the
+      // request just hasn't been approved yet. Say so in a non-alarming tone.
+      setGateMsg('gate-leader-error', data.error || 'Login failed.', data.reason==='pending' ? 'info' : '');
     }
-  } catch(_) { err.textContent = 'Network error. Please try again.'; }
+  } catch(_) { setGateMsg('gate-leader-error','Network error. Please try again.'); }
   btn.disabled=false; btn.textContent='Sign In →';
+}
+
+// Shared tail for both sign-in paths (gate form and auth modal). An account
+// created through an invite carries mustChangePassword — it has a password
+// somebody else chose, so it can't be allowed into the app as-is.
+async function afterLogin() {
+  if (currentUser && currentUser.mustChangePassword) {
+    openChangePassword(true);
+    return;
+  }
+  await initApp();
 }
 
 function showNeedAccess() {
@@ -335,6 +481,13 @@ function updateNav() {
   });
 }
 
+// ── CONNECTION STATUS ────────────────────────────────────────
+// Column D of the sheet. Used to be three page sections; it's now a dropdown
+// on every card, so a student moves between statuses without moving in the DOM.
+const STATUS_LABELS = { core:'Core', loose:'Loosely Connected', fringe:'Fringe' };
+const STATUS_ORDER = ['core','loose','fringe'];
+function statusOf(p) { return STATUS_LABELS[p.status] ? p.status : 'core'; }
+
 // ── ROSTER ───────────────────────────────────────────────────
 async function loadRoster() {
   // Every failure here used to be swallowed and rendered as "No students here
@@ -347,16 +500,50 @@ async function loadRoster() {
     try { data = await res.json(); } catch(_) {}
     if (!res.ok) {
       error = (data && data.error) || ('The roster sheet returned ' + res.status + '.');
-    } else if (!data || !data.hs) {
+    } else if (!data || !data.hs || !Array.isArray(data.hs.students)) {
       error = 'The roster sheet came back in a shape we could not read.';
     } else {
       DATA = data;
+      await Promise.all([loadGoals(), loadInteractionCounts()]);
     }
   } catch(e) {
     error = 'Could not reach the server. Check your connection and try again.';
   }
   showRosterError(error);
   renderAll();
+}
+
+// Goals left the sheet when its Goals column was deleted; they live in
+// roster_kv now, keyed by the student's sheet ID. Fetched as one map per tab
+// rather than per card, then hung off the student objects so every existing
+// reader (the card progress bar, the detail panel) keeps working unchanged.
+async function loadGoals() {
+  await Promise.all(['hs','ms'].map(async sk => {
+    let map = {};
+    try {
+      const res = await fetch('/roster/api/student/goals?sk='+sk);
+      if (res.ok) map = await res.json();
+    } catch(e) { /* goals are additive — a failure here shouldn't blank the roster */ }
+    (DATA[sk].students||[]).forEach(p => {
+      const g = map[p.id] || {};
+      p.goals = g.goals || [];
+      p.primaryGoal = g.primaryGoal || '';
+    });
+  }));
+}
+
+// Hangout counts used to come from a sheet column the Apps Script maintained.
+// That column is gone, so the "Most interactions" sort reads them from the
+// notes store instead.
+async function loadInteractionCounts() {
+  await Promise.all(['hs','ms'].map(async sk => {
+    let counts = {};
+    try {
+      const res = await fetch('/roster/api/student/interactions?sk='+sk);
+      if (res.ok) counts = (await res.json()).counts || {};
+    } catch(e) { /* the sort degrades to zeroes; not worth failing the load */ }
+    (DATA[sk].students||[]).forEach(p => { p.interactionCount = counts[p.id] || 0; });
+  }));
 }
 
 function showRosterError(message) {
@@ -384,9 +571,7 @@ function renderAll() {
   }
   ['hs','ms'].forEach(sk => {
     renderStats(sk);
-    renderGrid(DATA[sk].core,  sk+'-core-grid',  sk,'core');
-    renderGrid(DATA[sk].loose, sk+'-loose-grid', sk,'loose');
-    renderGrid(DATA[sk].fringe,sk+'-fringe-grid',sk,'fringe');
+    renderGrid(DATA[sk].students, sk+'-grid', sk);
   });
   document.querySelectorAll('.edit-gated').forEach(el => {
     el.style.display=canEdit?'':'none';
@@ -397,18 +582,20 @@ function renderAll() {
 function renderStats(sk) {
   const el = document.getElementById(sk+'-stats');
   if (!el) return;
-  const d = DATA[sk];
-  const c=(d.core||[]).length, l=(d.loose||[]).length, f=(d.fringe||[]).length;
-  const conn = [...(d.core||[]),...(d.loose||[])].filter(p=>p.connected).length;
+  const all = DATA[sk].students||[];
+  const c=all.filter(p=>statusOf(p)==='core').length;
+  const l=all.filter(p=>statusOf(p)==='loose').length;
+  const f=all.filter(p=>statusOf(p)==='fringe').length;
+  const conn=all.filter(p=>p.connected).length;
   el.innerHTML =
-    stat(c,'Core') + stat(l,'Loosely Connected') + stat(f,'Fringe') + stat(c+l+f,'Total') +
-    (sk==='hs' ? stat(conn,'Connected') : '');
+    stat(c,'Core') + stat(l,'Loosely Connected') + stat(f,'Fringe') +
+    stat(all.length,'Total') + stat(conn,'Connected');
 }
 function stat(n,label) {
   return '<div class="stat"><div class="stat-val">'+n+'</div><div class="stat-label">'+label+'</div></div>';
 }
 
-function renderGrid(data, id, sk, section) {
+function renderGrid(data, id, sk) {
   const el = document.getElementById(id);
   if (!el) return;
   el.innerHTML='';
@@ -416,10 +603,10 @@ function renderGrid(data, id, sk, section) {
     el.innerHTML='<div class="empty"><div class="empty-icon">👥</div><p>No students here yet</p></div>';
     return;
   }
-  (data||[]).forEach((p,i) => el.appendChild(makeCard(p,i,sk,section)));
+  (data||[]).forEach((p,i) => el.appendChild(makeCard(p,i,sk)));
 }
 
-function makeCard(person, idx, sk, section) {
+function makeCard(person, idx, sk) {
   const card = document.createElement('div');
   card.className='card';
   const g = GRADIENTS[idx % GRADIENTS.length];
@@ -430,11 +617,21 @@ function makeCard(person, idx, sk, section) {
   const meta = [
     (tr.school!==false) && person.school   ? '🏫 '+person.school : '',
     (tr.birthdays!==false) && person.birthday ? '🎂 '+formatDate(person.birthday)+((tr.age!==false)&&age?' · '+age+'yo':'') : '',
-    person.interest ? '⚡ '+person.interest : '',
+    '🤝 '+lastConnectedLabel(person),
   ].filter(Boolean).map(t => '<div class="meta-item"><span>'+t+'</span></div>').join('');
 
-  const connBadge = sk==='hs'
-    ? '<span class="badge-status '+(person.connected?'connected':'not-connected')+'">'+(person.connected?'● Family Connected With':'○ Needs Connection')+'</span>' : '';
+  const connBadge = '<span class="badge-status '+(person.connected?'connected':'not-connected')+'">'+
+    (person.connected?'● Family Connected With':'○ Not Connected')+'</span>';
+
+  // The whole card is a click target for the detail view, so the dropdown has
+  // to stop propagation or picking a status also navigates away from it.
+  const st = statusOf(person);
+  const statusEl = canEdit
+    ? '<select class="status-select status-'+st+'" onclick="event.stopPropagation()" '+
+      'onchange="event.stopPropagation();changeStatus(\\''+sk+'\\','+idx+',this.value,this)">'+
+      STATUS_ORDER.map(k=>'<option value="'+k+'"'+(k===st?' selected':'')+'>'+STATUS_LABELS[k]+'</option>').join('')+
+      '</select>'
+    : '<span class="status-chip status-'+st+'">'+STATUS_LABELS[st]+'</span>';
 
   const goals = person.goals||[];
   const done = goals.filter(g=>g.done).length;
@@ -443,11 +640,11 @@ function makeCard(person, idx, sk, section) {
     : (person.primaryGoal ? '<div class="goal-primary">🎯 '+person.primaryGoal.slice(0,40)+'</div>' : '');
 
   const editBtn = canEdit
-    ? '<button class="card-edit-btn" onclick="event.stopPropagation();openEditModal(\\''+sk+'\\',\\''+section+'\\','+idx+')" title="Edit">✏️</button>'
+    ? '<button class="card-edit-btn" onclick="event.stopPropagation();openEditModal(\\''+sk+'\\','+idx+')" title="Edit">✏️</button>'
     : '';
 
   const avatarClick = canEdit
-    ? 'event.stopPropagation();openEditModal(\\''+sk+'\\',\\''+section+'\\','+idx+')'
+    ? 'event.stopPropagation();openEditModal(\\''+sk+'\\','+idx+')'
     : '';
   card.innerHTML = editBtn +
     '<div class="card-avatar"'+(canEdit?' onclick="'+avatarClick+'"':'')+'>'+
@@ -457,10 +654,55 @@ function makeCard(person, idx, sk, section) {
     '</div><div class="card-name-row"><div class="card-name">'+person.name+'</div>'+
     ((tr.showGrade!==false) && person.grade ? '<span class="badge-grade">Gr.'+person.grade+'</span>' : '')+'</div>'+
     (meta ? '<div class="card-meta">'+meta+'</div>' : '')+
-    connBadge + goalHtml;
+    '<div class="card-status-row">'+statusEl+connBadge+'</div>' + goalHtml;
 
-  card.addEventListener('click', () => openStudentDetail(sk, section, idx));
+  card.addEventListener('click', () => openStudentDetail(sk, idx));
   return card;
+}
+
+// Column B of the sheet — the last time this student's parents were connected
+// with. Written by the Apps Script when the Connected toggle is switched on.
+function lastConnectedLabel(person) {
+  if (!person.lastConnected) return 'Parent connection · never';
+  const t = timeAgo(person.lastConnected);
+  return 'Parent connection · ' + (t || formatDate(person.lastConnected));
+}
+
+// Every sheet write goes through POST. It used to be a GET with the params in
+// the query string, which meant ?action=delete was reachable by navigation and,
+// with a SameSite=Lax session cookie, a leader clicking a crafted link could
+// delete a student. Cross-site POSTs carry no cookie.
+function writeInit(params) {
+  return {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: params.toString(),
+  };
+}
+
+// Writes column D. Optimistic: the dropdown already shows the new value, so on
+// failure it's put back rather than left lying about what the sheet holds.
+async function changeStatus(sk, idx, value, el) {
+  const person = (DATA[sk].students||[])[idx];
+  if (!person || !canEdit) return;
+  const previous = statusOf(person);
+  if (value === previous) return;
+
+  person.status = value;
+  if (el) el.className = 'status-select status-' + value;
+
+  try {
+    const params = new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{status:value}})});
+    const res = await fetch('/roster/api/sheet/write', writeInit(params));
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    renderStats(sk);
+    showToast('✓ '+person.name+' → '+STATUS_LABELS[value],'ok');
+  } catch(e) {
+    person.status = previous;
+    if (el) { el.value = previous; el.className = 'status-select status-' + previous; }
+    showToast('Could not save status — the sheet still says '+STATUS_LABELS[previous],'error');
+  }
 }
 
 // ── SEARCH (replaced by applyFilters below) ─────────────────
@@ -477,53 +719,116 @@ function switchTab(sk, btn) {
 function openAuthModal(tab='login') { switchAuthTab(tab); openModal('auth-modal'); }
 function closeAuthModal() { closeModal('auth-modal'); }
 function switchAuthTab(tab) {
+  // The success panel replaces the signup form after a request goes through;
+  // switching tabs puts the form back.
+  document.getElementById('auth-signup-done').style.display = 'none';
   document.getElementById('auth-login-form').style.display  = tab==='login'  ? 'flex' : 'none';
   document.getElementById('auth-signup-form').style.display = tab==='signup' ? 'flex' : 'none';
   document.getElementById('tab-login-btn').classList.toggle('active', tab==='login');
   document.getElementById('tab-signup-btn').classList.toggle('active', tab==='signup');
-  document.getElementById('auth-modal-title').textContent = tab==='login' ? 'Welcome Back' : 'Join the Team';
-  ['login-msg','signup-msg'].forEach(id => { document.getElementById(id).textContent=''; });
+  document.getElementById('auth-modal-title').textContent = tab==='login' ? 'Welcome Back' : 'Request Access';
+  ['login-msg','signup-msg'].forEach(id => { const el=document.getElementById(id); el.textContent=''; el.className='auth-msg'; });
+  if (tab==='signup') wirePasswordRules('signup-password','signup-rules');
+}
+
+// ── CHANGE PASSWORD ──────────────────────────────────────────
+// forced=true is the invite path: the account has a password someone else
+// chose, so the modal can't be dismissed until it's replaced.
+let passwordChangeForced = false;
+function openChangePassword(forced) {
+  passwordChangeForced = !!forced;
+  ['pw-old','pw-new','pw-confirm'].forEach(id => { document.getElementById(id).value=''; });
+  const msg = document.getElementById('pw-msg'); msg.textContent=''; msg.className='auth-msg';
+  document.getElementById('password-modal-title').textContent = forced ? 'Set Your Own Password' : 'Change Password';
+  document.getElementById('password-modal-sub').textContent = forced
+    ? 'This account was set up with a temporary password. Choose your own to continue.'
+    : 'Choose a new password for your account';
+  document.getElementById('password-modal-close').style.display = forced ? 'none' : '';
+  wirePasswordRules('pw-new','pw-rules');
+  openModal('password-modal');
+}
+
+async function doChangePassword() {
+  const oldPassword=v('pw-old'), newPassword=v('pw-new'), confirmPassword=v('pw-confirm');
+  const msg=document.getElementById('pw-msg'), btn=document.getElementById('pw-submit');
+  if (!oldPassword||!newPassword||!confirmPassword) { setMsg(msg,'Please fill in all fields.','error'); return; }
+  const problem = passwordProblem(newPassword);
+  if (problem) { setMsg(msg, problem, 'error'); return; }
+  if (newPassword!==confirmPassword) { setMsg(msg,"Those passwords don't match.",'error'); return; }
+
+  btn.disabled=true; btn.textContent='Updating…'; msg.textContent='';
+  try {
+    const res = await fetch('/roster/api/auth/change-password', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({oldPassword,newPassword,confirmPassword}),
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeModal('password-modal');
+      showToast('✓ Password updated','ok');
+      if (passwordChangeForced) { passwordChangeForced=false; await initApp(); }
+    } else setMsg(msg, data.error||'Could not update your password.','error');
+  } catch(_) { setMsg(msg,'Network error. Please try again.','error'); }
+  btn.disabled=false; btn.textContent='Update Password';
 }
 
 async function doLogin() {
-  const email = v('login-email'), password = v('login-password');
+  const email = v('login-email').trim().toLowerCase(), password = v('login-password');
   const msg = document.getElementById('login-msg');
   const btn = document.getElementById('login-submit');
   if (!email||!password) { setMsg(msg,'Please fill in all fields.','error'); return; }
   btn.disabled=true; btn.textContent='Logging in…'; msg.textContent='';
-  const res = await fetch('/roster/api/auth/login', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({email,password}),
-  });
-  const data = await res.json();
-  btn.disabled=false; btn.textContent='Log In';
-  if (data.success) {
-    currentUser=data.user; canEdit=['approved','admin','leader'].includes(currentUser.role);
-    closeAuthModal();
-    // Same entry point the gate's Sign In uses. This branch used to call
-    // renderAll() directly, which drew the empty in-memory DATA and left the
-    // roster reading "No students here yet" until the page was reloaded —
-    // loadRoster() is only ever called from initApp().
-    await initApp();
-    showToast('✓ Welcome back, '+currentUser.name+'!','ok');
-  } else setMsg(msg, data.error||'Login failed.','error');
+  try {
+    const res = await fetch('/roster/api/auth/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email,password}),
+    });
+    const data = await res.json();
+    btn.disabled=false; btn.textContent='Log In';
+    if (data.success) {
+      currentUser=data.user; canEdit=['approved','admin','leader'].includes(currentUser.role);
+      closeAuthModal();
+      // Same entry point the gate's Sign In uses. This branch used to call
+      // renderAll() directly, which drew the empty in-memory DATA and left the
+      // roster reading "No students here yet" until the page was reloaded —
+      // loadRoster() is only ever called from initApp().
+      await afterLogin();
+      showToast('✓ Welcome back, '+currentUser.name+'!','ok');
+    } else setMsg(msg, data.error||'Login failed.','error');
+  } catch(_) {
+    btn.disabled=false; btn.textContent='Log In';
+    setMsg(msg,'Network error. Please try again.','error');
+  }
 }
 
 async function doSignup() {
-  const name=v('signup-name'), email=v('signup-email'), password=v('signup-password');
+  const name=v('signup-name').trim(), email=v('signup-email').trim().toLowerCase(), password=v('signup-password');
   const msg=document.getElementById('signup-msg'), btn=document.getElementById('signup-submit');
   if (!name||!email||!password) { setMsg(msg,'Please fill in all fields.','error'); return; }
-  btn.disabled=true; btn.textContent='Creating…'; msg.textContent='';
-  const res = await fetch('/roster/api/auth/signup', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({name,email,password}),
-  });
-  const data = await res.json();
-  btn.disabled=false; btn.textContent='Create Account';
-  if (data.success) {
-    setMsg(msg,'✓ '+data.message,'success');
-    ['signup-name','signup-email','signup-password'].forEach(id=>{ document.getElementById(id).value=''; });
-  } else setMsg(msg,data.error||'Signup failed.','error');
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) { setMsg(msg,'That email address doesn\\'t look right.','error'); return; }
+  const problem = passwordProblem(password);
+  if (problem) { setMsg(msg, problem, 'error'); return; }
+
+  btn.disabled=true; btn.textContent='Sending…'; msg.textContent='';
+  try {
+    const res = await fetch('/roster/api/auth/signup', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name,email,password}),
+    });
+    const data = await res.json();
+    btn.disabled=false; btn.textContent='Request Access';
+    if (data.success) {
+      // Swap the filled-in form for a confirmation, so it's obvious the
+      // request went somewhere and there's nothing left to do.
+      ['signup-name','signup-email','signup-password'].forEach(id=>{ document.getElementById(id).value=''; });
+      document.getElementById('auth-signup-form').style.display='none';
+      document.getElementById('auth-done-body').textContent = data.message || "A team admin will review it. You'll get an email as soon as it's approved.";
+      document.getElementById('auth-signup-done').style.display='flex';
+    } else setMsg(msg,data.error||'Could not send your request.','error');
+  } catch(_) {
+    btn.disabled=false; btn.textContent='Request Access';
+    setMsg(msg,'Network error. Please try again.','error');
+  }
 }
 
 async function logout() {
@@ -592,35 +897,31 @@ function uploadProfilePhoto(input) {
 }
 
 // ── EDIT STUDENT MODAL ────────────────────────────────────────
-function openEditModal(sk, section, index) {
+function openEditModal(sk, index) {
   if (!canEdit) return;
-  const p = DATA[sk][section][index];
-  editState={mode:'edit',sk,section,index};
+  const p = DATA[sk].students[index];
+  editState={mode:'edit',sk,index};
   document.getElementById('edit-modal-title').textContent='Edit Student';
-  document.getElementById('edit-modal-sub').textContent=(sk==='hs'?'High School':'Middle School')+' · '+{core:'Core',loose:'Loosely Connected',fringe:'Fringe'}[section];
+  document.getElementById('edit-modal-sub').textContent=(sk==='hs'?'High School':'Middle School')+' · '+STATUS_LABELS[statusOf(p)];
   sv('ef-name',p.name||''); sv('ef-grade',p.grade||''); sv('ef-school',p.school||'');
-  sv('ef-birthday',p.birthday||''); sv('ef-interest',p.interest||''); sv('ef-notes',p.notes||'');
+  sv('ef-birthday',p.birthday||''); sv('ef-notes',p.notes||'');
   sv('ef-photoUrl',p.photoUrl||''); sv('ef-primary-goal',p.primaryGoal||'');
-  sv('ef-section',section);
+  sv('ef-status',statusOf(p));
   setConnected(p.connected||false);
   updateEditPhotoPreview();
-  document.getElementById('ef-connected-field').style.display=sk==='hs'?'block':'none';
-  document.getElementById('ef-section-field').style.display='block';
   document.getElementById('ef-delete-btn').style.display='inline-block';
   document.getElementById('ef-save-btn').textContent='Save Changes';
   openModal('edit-modal');
 }
 
-function openAddModal(sk, section) {
+function openAddModal(sk) {
   if (!canEdit) return;
-  editState={mode:'add',sk,section,index:-1};
+  editState={mode:'add',sk,index:-1};
   document.getElementById('edit-modal-title').textContent='Add Student';
-  document.getElementById('edit-modal-sub').textContent=(sk==='hs'?'High School':'Middle School')+' · '+{core:'Core',loose:'Loosely Connected',fringe:'Fringe'}[section];
-  ['ef-name','ef-grade','ef-school','ef-birthday','ef-interest','ef-notes','ef-photoUrl','ef-primary-goal'].forEach(id=>sv(id,''));
-  sv('ef-section',section);
+  document.getElementById('edit-modal-sub').textContent=(sk==='hs'?'High School':'Middle School');
+  ['ef-name','ef-grade','ef-school','ef-birthday','ef-notes','ef-photoUrl','ef-primary-goal'].forEach(id=>sv(id,''));
+  sv('ef-status','core');
   setConnected(false); updateEditPhotoPreview();
-  document.getElementById('ef-connected-field').style.display=sk==='hs'?'block':'none';
-  document.getElementById('ef-section-field').style.display='none';
   document.getElementById('ef-delete-btn').style.display='none';
   document.getElementById('ef-save-btn').textContent='Add Student';
   openModal('edit-modal');
@@ -632,7 +933,7 @@ function setConnected(val) {
   connectedVal=val;
   const el=document.getElementById('ef-connected-toggle');
   el.classList.toggle('on',val);
-  el.querySelector('.toggle-label').textContent=val?'Family Connected With':'Needs Connection';
+  el.querySelector('.toggle-label').textContent=val?'Family Connected With':'Not Connected';
 }
 function toggleConnected() { setConnected(!connectedVal); }
 function updateEditPhotoPreview() {
@@ -666,16 +967,16 @@ function uploadStudentPhoto(input) {
   reader.readAsDataURL(file);
 }
 
-function triggerStudentDetailPhotoUpload(sk, section, index) {
+function triggerStudentDetailPhotoUpload(sk, index) {
   if (!canEdit) return;
   cropCallback=async blob=>{
     const data=await uploadCroppedBlob(blob,'student');
     if(!data.url){showToast(data.error||'Upload failed','error');return;}
-    const person=DATA[sk][section][index];
+    const person=DATA[sk].students[index];
     person.photoUrl=data.url;
-    const params=new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,rowIndex:person.rowIndex,fields:{photoUrl:data.url}})});
-    await fetch('/roster/api/sheet/write?'+params);
-    renderStudentDetail(sk,section,index);
+    const params=new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{photoUrl:data.url}})});
+    await fetch('/roster/api/sheet/write', writeInit(params));
+    renderStudentDetail(sk,index);
     showToast('✓ Photo updated','ok');
   };
   const input=document.getElementById('shared-photo-input');
@@ -688,34 +989,36 @@ async function saveEdit() {
   const btn=document.getElementById('ef-save-btn');
   const origText=btn.textContent;
   btn.disabled=true; btn.textContent='Saving…';
-  const newSection=v('ef-section')||editState.section;
+  // The primary goal is the one field on this form that isn't a sheet column
+  // any more — it goes to roster_kv with the rest of the student's goals.
+  const primaryGoal=v('ef-primary-goal');
   const fields={
     name, grade:v('ef-grade'), school:v('ef-school'), birthday:v('ef-birthday'),
-    interest:v('ef-interest'), notes:v('ef-notes'), photoUrl:v('ef-photoUrl'),
-    primaryGoal:v('ef-primary-goal'), connected:connectedVal,
+    notes:v('ef-notes'), photoUrl:v('ef-photoUrl'),
+    status:v('ef-status')||'core', connected:connectedVal,
   };
-  const {mode,sk,section,index}=editState;
+  const {mode,sk,index}=editState;
   try {
     if (mode==='edit') {
-      // Handle section change: update the section field on the backend
-      const updatedFields={...fields,section:newSection};
-      Object.assign(DATA[sk][section][index], fields);
-      if(newSection!==section){
-        // Move student to new section locally
-        const person=DATA[sk][section].splice(index,1)[0];
-        Object.assign(person,fields);
-        DATA[sk][newSection].push(person);
-      }
-      const params=new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,rowIndex:(DATA[sk][newSection!==section?newSection:section].find(p=>p.name===name)||{}).rowIndex||DATA[sk][section][index]?.rowIndex,fields:updatedFields})});
-      const res=await fetch('/roster/api/sheet/write?'+params);
+      const person=DATA[sk].students[index];
+      Object.assign(person, fields);
+      const params=new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields})});
+      const res=await fetch('/roster/api/sheet/write', writeInit(params));
       const data=await res.json();
-      showToast(data.error ? 'Saved locally' : (newSection!==section?'✓ Moved to '+{core:'Core',loose:'Loosely Connected',fringe:'Fringe'}[newSection]:'✓ Saved'), data.error?'error':'ok');
+      // Column B is stamped by the script when connected flips on, so re-read
+      // the row's date from its response rather than guessing at it here.
+      if (data.lastConnected!==undefined) person.lastConnected=data.lastConnected;
+      await saveGoals(sk,person,primaryGoal,person.goals||[]);
+      showToast(data.error?'Saved locally':'✓ Saved',data.error?'error':'ok');
     } else {
-      DATA[sk][section].push({...fields});
-      const params=new URLSearchParams({action:'add',payload:JSON.stringify({sheet:sk,section,person:fields})});
-      const res=await fetch('/roster/api/sheet/write?'+params);
+      const params=new URLSearchParams({action:'add',payload:JSON.stringify({sheet:sk,person:fields})});
+      const res=await fetch('/roster/api/sheet/write', writeInit(params));
       const data=await res.json();
-      if (data.newRowIndex!==undefined) DATA[sk][section][DATA[sk][section].length-1].rowIndex=data.newRowIndex;
+      const person={...fields,goals:[],primaryGoal:'',lastConnected:data.lastConnected||''};
+      if (data.newRowIndex!==undefined) person.rowIndex=data.newRowIndex;
+      if (data.id) person.id=data.id;
+      DATA[sk].students.push(person);
+      await saveGoals(sk,person,primaryGoal,[]);
       showToast(data.error?'Added locally':'✓ Student added',data.error?'error':'ok');
     }
   } catch(e) {
@@ -725,32 +1028,32 @@ async function saveEdit() {
 }
 
 function confirmDelete() {
-  const {sk,section,index}=editState;
-  const name=DATA[sk][section][index].name;
+  const {sk,index}=editState;
+  const name=DATA[sk].students[index].name;
   document.getElementById('confirm-student-delete-name').textContent=name;
   openModal('confirm-student-delete-modal');
 }
 async function doConfirmDeleteStudent() {
-  const {sk,section,index}=editState;
-  const name=DATA[sk][section][index].name;
-  const person=DATA[sk][section].splice(index,1)[0];
-  const params=new URLSearchParams({action:'delete',payload:JSON.stringify({sheet:sk,rowIndex:person.rowIndex})});
-  await fetch('/roster/api/sheet/write?'+params);
+  const {sk,index}=editState;
+  const name=DATA[sk].students[index].name;
+  const person=DATA[sk].students.splice(index,1)[0];
+  const params=new URLSearchParams({action:'delete',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex})});
+  await fetch('/roster/api/sheet/write', writeInit(params));
   closeModal('confirm-student-delete-modal');
   renderAll(); closeEditModal(); showToast('Removed '+name,'ok');
 }
 
 // ── STUDENT DETAIL ────────────────────────────────────────────
-async function openStudentDetail(sk, section, index) {
-  currentStudentKey={sk,section,index};
+async function openStudentDetail(sk, index) {
+  currentStudentKey={sk,index};
   showScreen('student');
-  await renderStudentDetail(sk,section,index);
+  await renderStudentDetail(sk,index);
 }
 
 function goBack() { showScreen('app'); }
 
-async function renderStudentDetail(sk, section, index) {
-  const person=DATA[sk][section][index];
+async function renderStudentDetail(sk, index) {
+  const person=DATA[sk].students[index];
   const el=document.getElementById('student-content');
   const g=GRADIENTS[index%GRADIENTS.length];
   const thumb=driveThumb(person.photoUrl);
@@ -761,18 +1064,19 @@ async function renderStudentDetail(sk, section, index) {
     (tr2.showGrade!==false) && person.grade   ? '📚 Grade '+person.grade : '',
     (tr2.school!==false) && person.school  ? '🏫 '+person.school : '',
     (tr2.birthdays!==false) && person.birthday? '🎂 '+formatDate(person.birthday)+((tr2.age!==false)&&age?' · '+age+'yo':'') : '',
-    person.interest? '⚡ '+person.interest : '',
-    sk==='hs' ? (person.connected?'✅ Family Connected With':'○ Needs Connection') : '',
+    '🔗 '+STATUS_LABELS[statusOf(person)],
+    person.connected?'✅ Family Connected With':'○ Not Connected',
+    '🤝 '+lastConnectedLabel(person),
   ].filter(Boolean).map(c=>'<div class="chip">'+c+'</div>').join('');
 
   const editBtn = canEdit
-    ? '<button class="nav-btn primary edit-gated" onclick="openEditModal(\\''+sk+'\\',\\''+section+'\\','+index+')">Edit</button>'
+    ? '<button class="nav-btn primary edit-gated" onclick="openEditModal(\\''+sk+'\\','+index+')">Edit</button>'
     : '';
   const logBtn = canEdit && tr2.hangoutNotes !== false
-    ? '<button class="nav-btn" onclick="openInteractionModal(\\''+sk+'\\',\\''+section+'\\','+index+',\\''+person.name+'\\')">+ Log Hangout</button>'
+    ? '<button class="nav-btn" onclick="openInteractionModal(\\''+sk+'\\','+index+',\\''+person.name+'\\')">+ Log Hangout</button>'
     : '';
 
-  const sdAvatarClick = canEdit ? ' onclick="triggerStudentDetailPhotoUpload(\\''+sk+'\\',\\''+section+'\\','+index+')"' : '';
+  const sdAvatarClick = canEdit ? ' onclick="triggerStudentDetailPhotoUpload(\\''+sk+'\\','+index+')"' : '';
   el.innerHTML =
     '<div class="student-hero">'+
       '<div class="sd-avatar-wrap"'+sdAvatarClick+'>'+
@@ -807,19 +1111,19 @@ async function renderStudentDetail(sk, section, index) {
 
   // Load goals
   const goals=person.goals||[];
-  renderGoalsList(goals,sk,section,index);
+  renderGoalsList(goals,sk,index);
 
   // Load interactions (only if hangout notes tracking is enabled)
   if (tr2.hangoutNotes !== false) {
     try {
-      const res=await fetch('/roster/api/student/interactions?sk='+sk+'&section='+section+'&index='+index);
+      const res=await fetch('/roster/api/student/interactions?sk='+sk+'&id='+encodeURIComponent(person.id||''));
       const d=await res.json();
-      renderInteractionsList(d.interactions||[], sk, section, index);
+      renderInteractionsList(d.interactions||[], sk, index);
     } catch(e) { document.getElementById('interactions-list').innerHTML='<div class="empty"><p>Could not load.</p></div>'; }
   }
 }
 
-function renderGoalsList(goals,sk,section,index) {
+function renderGoalsList(goals,sk,index) {
   const el=document.getElementById('goals-list');
   if (!el) return;
   const gc=document.getElementById('goal-count');
@@ -835,7 +1139,7 @@ function renderGoalsList(goals,sk,section,index) {
   ).join('');
 }
 
-function renderInteractionsList(interactions, sk, section, index) {
+function renderInteractionsList(interactions, sk, index) {
   currentInteractions = interactions;
   const el=document.getElementById('interactions-list');
   if (!el) return;
@@ -847,8 +1151,8 @@ function renderInteractionsList(interactions, sk, section, index) {
     const editedTag=int.updatedAt ? ' <span class="int-edited">edited</span>' : '';
     const actBtns=canManage
       ? '<div class="int-actions">'+
-          '<button class="int-action-btn" data-id="'+int.id+'" data-sk="'+sk+'" data-sec="'+section+'" data-idx="'+index+'" onclick="openEditInteractionModal(this.dataset.id,this.dataset.sk,this.dataset.sec,+this.dataset.idx)">Edit</button>'+
-          '<button class="int-action-btn danger" data-id="'+int.id+'" data-sk="'+sk+'" data-sec="'+section+'" data-idx="'+index+'" onclick="deleteInteractionNote(this.dataset.id,this.dataset.sk,this.dataset.sec,+this.dataset.idx)">Delete</button>'+
+          '<button class="int-action-btn" data-id="'+int.id+'" data-sk="'+sk+'" data-idx="'+index+'" onclick="openEditInteractionModal(this.dataset.id,this.dataset.sk,+this.dataset.idx)">Edit</button>'+
+          '<button class="int-action-btn danger" data-id="'+int.id+'" data-sk="'+sk+'" data-idx="'+index+'" onclick="deleteInteractionNote(this.dataset.id,this.dataset.sk,+this.dataset.idx)">Delete</button>'+
         '</div>'
       : '';
     return '<div class="int-item">'+
@@ -867,41 +1171,53 @@ async function addGoal() {
   const input=document.getElementById('new-goal-input');
   const text=input.value.trim();
   if (!text||!currentStudentKey) return;
-  const {sk,section,index}=currentStudentKey;
-  const person=DATA[sk][section][index];
+  const {sk,index}=currentStudentKey;
+  const person=DATA[sk].students[index];
   if (!person.goals) person.goals=[];
   person.goals.push({text,done:false,primary:person.goals.length===0,createdAt:new Date().toISOString()});
   input.value='';
-  await syncGoals(sk,section,index);
-  renderGoalsList(person.goals,sk,section,index);
+  await syncGoals(sk,index);
+  renderGoalsList(person.goals,sk,index);
   renderAll();
   showToast('✓ Goal added','ok');
 }
 async function toggleGoal(gi) {
   if (!canEdit||!currentStudentKey) return;
-  const {sk,section,index}=currentStudentKey;
-  DATA[sk][section][index].goals[gi].done=!DATA[sk][section][index].goals[gi].done;
-  await syncGoals(sk,section,index);
-  renderGoalsList(DATA[sk][section][index].goals,sk,section,index);
+  const {sk,index}=currentStudentKey;
+  const person=DATA[sk].students[index];
+  person.goals[gi].done=!person.goals[gi].done;
+  await syncGoals(sk,index);
+  renderGoalsList(person.goals,sk,index);
   renderAll();
 }
 async function deleteGoal(gi) {
   if (!canEdit||!currentStudentKey) return;
-  const {sk,section,index}=currentStudentKey;
-  DATA[sk][section][index].goals.splice(gi,1);
-  await syncGoals(sk,section,index);
-  renderGoalsList(DATA[sk][section][index].goals,sk,section,index);
+  const {sk,index}=currentStudentKey;
+  const person=DATA[sk].students[index];
+  person.goals.splice(gi,1);
+  await syncGoals(sk,index);
+  renderGoalsList(person.goals,sk,index);
   showToast('Goal removed');
 }
-async function syncGoals(sk,section,index) {
-  const person=DATA[sk][section][index];
-  const params=new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,rowIndex:person.rowIndex,fields:{goals:JSON.stringify(person.goals)}})});
-  await fetch('/roster/api/sheet/write?'+params);
+async function syncGoals(sk,index) {
+  const person=DATA[sk].students[index];
+  await saveGoals(sk,person,person.primaryGoal||'',person.goals||[]);
+}
+// Goals no longer have a sheet column — they're stored in roster_kv against
+// the student's stable sheet ID.
+async function saveGoals(sk,person,primaryGoal,goals) {
+  if (!person||!person.id) return;
+  person.primaryGoal=primaryGoal;
+  person.goals=goals;
+  await fetch('/roster/api/student/goals',{
+    method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({sk,id:person.id,primaryGoal,goals}),
+  });
 }
 
 // ── INTERACTION MODAL ─────────────────────────────────────────
-function openInteractionModal(sk,section,index,studentName) {
-  interactionKey={sk,section,index,studentName};
+function openInteractionModal(sk,index,studentName) {
+  interactionKey={sk,index,studentName};
   document.getElementById('int-modal-sub').textContent='with '+studentName;
   sv('int-leader',currentUser?currentUser.name:'');
   sv('int-date',new Date().toISOString().slice(0,10));
@@ -915,19 +1231,19 @@ async function saveInteraction() {
   if (!leader||!summary) { showToast('Leader name and summary required','error'); return; }
   const btn=document.querySelector('#interaction-modal .btn-save');
   if(btn){btn.disabled=true;btn.textContent='Saving…';}
-  const {sk,section,index,studentName}=interactionKey;
-  const person=DATA[sk][section][index];
+  const {sk,index,studentName}=interactionKey;
+  const person=DATA[sk].students[index];
   const interaction={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),leader,date,summary,createdAt:new Date().toISOString(),leaderEmail:currentUser?currentUser.email:''};
   try {
     const res=await fetch('/roster/api/student/interactions',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({sk,section,index,rowIndex:person.rowIndex,studentName,interaction}),
+      body:JSON.stringify({sk,id:person.id,rowIndex:person.rowIndex,studentName,interaction}),
     });
     const data=await res.json();
     if (data.success) {
       closeInteractionModal();
       showToast('✓ Hangout logged!','ok');
-      if (currentStudentKey) renderStudentDetail(currentStudentKey.sk,currentStudentKey.section,currentStudentKey.index);
+      if (currentStudentKey) renderStudentDetail(currentStudentKey.sk,currentStudentKey.index);
     } else showToast(data.error||'Failed','error');
   } catch(e) {
     showToast('Network error — try again','error');
@@ -936,11 +1252,11 @@ async function saveInteraction() {
 }
 
 // ── INTERACTION EDIT / DELETE ─────────────────────────────────
-function openEditInteractionModal(intId, sk, section, index) {
+function openEditInteractionModal(intId, sk, index) {
   const int = currentInteractions.find(n => n.id === intId);
   if (!int) return;
-  const rowIndex = (DATA[sk]?.[section]?.[index] || {}).rowIndex;
-  editInteractionContext = { int, sk, section, index, rowIndex };
+  const person = DATA[sk]?.students?.[index] || {};
+  editInteractionContext = { int, sk, index, id: person.id, rowIndex: person.rowIndex };
   sv('edit-int-date', int.date || '');
   sv('edit-int-summary', int.summary || '');
   openModal('edit-interaction-modal');
@@ -948,41 +1264,41 @@ function openEditInteractionModal(intId, sk, section, index) {
 
 async function saveEditedInteraction() {
   if (!editInteractionContext) return;
-  const { int, sk, section, index, rowIndex } = editInteractionContext;
+  const { int, sk, id, rowIndex } = editInteractionContext;
   const date = v('edit-int-date');
   const summary = v('edit-int-summary');
   if (!summary) { showToast('Summary cannot be empty', 'error'); return; }
   const res = await fetch('/roster/api/student/interactions', {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sk, section, index, rowIndex, interactionId: int.id, changes: { date, summary } }),
+    body: JSON.stringify({ sk, id, rowIndex, interactionId: int.id, changes: { date, summary } }),
   });
   const data = await res.json();
   if (data.success) {
     closeModal('edit-interaction-modal');
     showToast('✓ Note updated', 'ok');
-    if (currentStudentKey) renderStudentDetail(currentStudentKey.sk, currentStudentKey.section, currentStudentKey.index);
+    if (currentStudentKey) renderStudentDetail(currentStudentKey.sk, currentStudentKey.index);
   } else showToast(data.error || 'Failed', 'error');
 }
 
-function deleteInteractionNote(id, sk, section, index) {
-  const rowIndex = (DATA[sk]?.[section]?.[index] || {}).rowIndex;
-  pendingDeleteInteraction = { id, sk, section, index, rowIndex };
+function deleteInteractionNote(interactionId, sk, index) {
+  const person = DATA[sk]?.students?.[index] || {};
+  pendingDeleteInteraction = { interactionId, sk, id: person.id, rowIndex: person.rowIndex };
   openModal('confirm-delete-modal');
 }
 
 async function confirmDeleteInteraction() {
   if (!pendingDeleteInteraction) return;
-  const { id, sk, section, index, rowIndex } = pendingDeleteInteraction;
+  const { interactionId, sk, id, rowIndex } = pendingDeleteInteraction;
   const res = await fetch('/roster/api/student/interactions', {
     method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sk, section, index, rowIndex, interactionId: id }),
+    body: JSON.stringify({ sk, id, rowIndex, interactionId }),
   });
   const data = await res.json();
   if (data.success) {
     closeModal('confirm-delete-modal');
     pendingDeleteInteraction = null;
     showToast('Note deleted', 'ok');
-    if (currentStudentKey) renderStudentDetail(currentStudentKey.sk, currentStudentKey.section, currentStudentKey.index);
+    if (currentStudentKey) renderStudentDetail(currentStudentKey.sk, currentStudentKey.index);
   } else showToast(data.error || 'Failed', 'error');
 }
 
@@ -1019,22 +1335,22 @@ async function loadActivityFeed() {
 }
 
 function findStudent(name) {
-  for (const sk of ['hs','ms']) for (const sec of ['core','loose','fringe']) {
-    const s=(DATA[sk][sec]||[]).find(p=>p.name===name);
+  for (const sk of ['hs','ms']) {
+    const s=(DATA[sk].students||[]).find(p=>p.name===name);
     if (s) return s;
   }
   return null;
 }
 function findStudentKey(name) {
-  for (const sk of ['hs','ms']) for (const sec of ['core','loose','fringe']) {
-    const idx=(DATA[sk][sec]||[]).findIndex(p=>p.name===name);
-    if (idx>=0) return {sk,section:sec,index:idx};
+  for (const sk of ['hs','ms']) {
+    const idx=(DATA[sk].students||[]).findIndex(p=>p.name===name);
+    if (idx>=0) return {sk,index:idx};
   }
   return null;
 }
 function navigateToStudent(name) {
   const k=findStudentKey(name);
-  if (k) openStudentDetail(k.sk,k.section,k.index);
+  if (k) openStudentDetail(k.sk,k.index);
 }
 
 // ── BRAIN DUMP ────────────────────────────────────────────────
@@ -1067,16 +1383,16 @@ async function processBrainDump() {
 }
 function getAllStudentNames() {
   const names=[];
-  for (const sk of ['hs','ms']) for (const sec of ['core','loose','fringe']) (DATA[sk][sec]||[]).forEach(p=>names.push(p.name));
+  for (const sk of ['hs','ms']) (DATA[sk].students||[]).forEach(p=>names.push(p.name));
   return names;
 }
 async function applyDump(i) {
   const p=window._dumpParsed[i];
   const k=findStudentKey(p.name);
   if (!k) { showToast('Student not found','error'); return; }
-  const person=DATA[k.sk][k.section][k.index];
+  const person=DATA[k.sk].students[k.index];
   const interaction={leader:currentUser?currentUser.name:'Unknown',date:new Date().toISOString().slice(0,10),summary:p.summary,createdAt:new Date().toISOString(),leaderEmail:currentUser?currentUser.email:''};
-  const res=await fetch('/roster/api/student/interactions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sk:k.sk,section:k.section,index:k.index,rowIndex:person.rowIndex,studentName:p.name,interaction})});
+  const res=await fetch('/roster/api/student/interactions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sk:k.sk,id:person.id,rowIndex:person.rowIndex,studentName:p.name,interaction})});
   const data=await res.json();
   if (data.success) showToast('✓ Logged for '+p.name,'ok');
   else showToast('Failed: '+(data.error||''),'error');
@@ -1106,13 +1422,14 @@ function switchAdminTab(name,btn) {
   if(btn)btn.classList.add('active');
 }
 async function loadAdminOverview() {
-  const total=['hs','ms'].reduce((a,sk)=>a+(DATA[sk].core||[]).length+(DATA[sk].loose||[]).length+(DATA[sk].fringe||[]).length,0);
-  const conn=['hs','ms'].reduce((a,sk)=>a+[...(DATA[sk].core||[]),...(DATA[sk].loose||[])].filter(p=>p.connected).length,0);
+  const total=['hs','ms'].reduce((a,sk)=>a+(DATA[sk].students||[]).length,0);
+  const conn=['hs','ms'].reduce((a,sk)=>a+(DATA[sk].students||[]).filter(p=>p.connected).length,0);
   let ints=0;
   try{const r=await fetch('/roster/api/activity/stats');const d=await r.json();ints=d.totalInteractions||0;}catch(e){}
   document.getElementById('admin-stats-grid').innerHTML=
-    kpi(total,'Total Students')+kpi(conn,'Connected HS')+kpi(ints,'Hangouts Logged')+
-    kpi((DATA.hs.core||[]).length,'HS Core')+kpi((DATA.ms.core||[]).length,'MS Core');
+    kpi(total,'Total Students')+kpi(conn,'Connected')+kpi(ints,'Hangouts Logged')+
+    kpi((DATA.hs.students||[]).filter(p=>statusOf(p)==='core').length,'HS Core')+
+    kpi((DATA.ms.students||[]).filter(p=>statusOf(p)==='core').length,'MS Core');
 }
 function kpi(n,label) { return '<div class="kpi"><div class="kpi-val">'+n+'</div><div class="kpi-label">'+label+'</div></div>'; }
 async function loadAdminUsers() {
@@ -1135,7 +1452,8 @@ async function loadAdminUsers() {
         '<td><span class="role-badge '+u.role+'">'+u.role+'</span></td>'+
         '<td style="color:var(--muted);font-family:\\'JetBrains Mono\\',monospace;font-size:11px">'+(u.createdAt?new Date(u.createdAt).toLocaleDateString():'—')+'</td>'+
         '<td><div class="btn-row">'+
-          (isPending?'<button class="role-btn approve" onclick="updateUser(\\''+u.email+'\\',\\'approved\\')">Approve</button>':'')+
+          (isPending?'<button class="role-btn approve" onclick="updateUser(\\''+u.email+'\\',\\'leader\\')">Approve</button>':'')+
+          (isPending&&!isSelf?'<button class="role-btn revoke" onclick="declineUser(\\''+u.email+'\\')">Decline</button>':'')+
           (!isAdmin?'<label class="leader-toggle" title="Toggle leader access"><input type="checkbox" '+leaderChecked+' '+leaderDisabled+' onchange="toggleLeader(\\''+u.email+'\\',this.checked)"><span>Leader</span></label>':'')+
           (!isSelf&&!isAdmin?'<button class="role-btn mk-admin" onclick="updateUser(\\''+u.email+'\\',\\'admin\\')">→ Admin</button>':'')+
           (!isSelf&&!isPending?'<button class="role-btn revoke" onclick="updateUser(\\''+u.email+'\\',\\'pending\\')">Revoke</button>':'')+
@@ -1175,12 +1493,20 @@ async function updateUser(email,role) {
   else showToast(data.error||'Failed','error');
 }
 
+// Matches declining from the email link: the account is deleted outright and
+// the person is told nothing. They can request again later if they want to.
+async function declineUser(email) {
+  if (!window.confirm('Decline and delete the request from '+email+'?\\n\\nThey will not be notified.')) return;
+  const res=await fetch('/roster/api/admin/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,action:'delete'})});
+  const data=await res.json();
+  if (data.success) { showToast('Request declined','ok'); loadAdminUsers(); }
+  else showToast(data.error||'Failed','error');
+}
+
 // ── FILTER / SORT ────────────────────────────────────────────
 function getAllStudents() {
   const all=[];
-  for (const sk of ['hs','ms']) for (const sec of ['core','loose','fringe']) {
-    (DATA[sk][sec]||[]).forEach((p,i)=>all.push({...p,_sk:sk,_sec:sec,_idx:i}));
-  }
+  for (const sk of ['hs','ms']) (DATA[sk].students||[]).forEach((p,i)=>all.push({...p,_sk:sk,_idx:i}));
   return all;
 }
 function populateFilterDropdowns() {
@@ -1205,40 +1531,44 @@ function applyFilters() {
   const gradeF=document.getElementById('filter-grade').value;
   const schoolF=document.getElementById('filter-school').value;
   const connF=document.getElementById('filter-connected').value;
+  const statusF=(document.getElementById('filter-status')||{}).value||'';
   const sortF=document.getElementById('filter-sort').value;
   ['hs','ms'].forEach(sk => {
-    ['core','loose','fringe'].forEach(sec => {
-      const gridEl=document.getElementById(sk+'-'+sec+'-grid');
-      if(!gridEl) return;
-      let items=DATA[sk][sec]||[];
-      let filtered=items.map((p,i)=>({p,i})).filter(({p})=>{
-        if(q && !(p.name||'').toLowerCase().includes(q) && !(p.school||'').toLowerCase().includes(q) && !(p.interest||'').toLowerCase().includes(q) && !(p.grade||'').toLowerCase().includes(q)) return false;
-        if(gradeF && p.grade!==gradeF) return false;
-        if(schoolF && p.school!==schoolF) return false;
-        if(connF==='connected' && !p.connected) return false;
-        if(connF==='not-connected' && p.connected) return false;
-        return true;
-      });
-      if(sortF) {
-        filtered.sort((a,b)=>{
-          switch(sortF){
-            case 'name-asc': return (a.p.name||'').localeCompare(b.p.name||'');
-            case 'name-desc': return (b.p.name||'').localeCompare(a.p.name||'');
-            case 'grade-asc': return (+a.p.grade||99)-(+b.p.grade||99);
-            case 'grade-desc': return (+b.p.grade||0)-(+a.p.grade||0);
-            case 'interactions-desc': return (+b.p.interactionCount||0)-(+a.p.interactionCount||0);
-            case 'interactions-asc': return (+a.p.interactionCount||0)-(+b.p.interactionCount||0);
-            default: return 0;
-          }
-        });
-      }
-      gridEl.innerHTML='';
-      if(!filtered.length){
-        gridEl.innerHTML='<div class="empty"><div class="empty-icon">🔍</div><p>No students match your filters</p></div>';
-        return;
-      }
-      filtered.forEach(({p,i})=>gridEl.appendChild(makeCard(p,i,sk,sec)));
+    const gridEl=document.getElementById(sk+'-grid');
+    if(!gridEl) return;
+    const items=DATA[sk].students||[];
+    let filtered=items.map((p,i)=>({p,i})).filter(({p})=>{
+      if(q && !(p.name||'').toLowerCase().includes(q) && !(p.school||'').toLowerCase().includes(q) && !(p.grade||'').toLowerCase().includes(q)) return false;
+      if(gradeF && p.grade!==gradeF) return false;
+      if(schoolF && p.school!==schoolF) return false;
+      if(statusF && statusOf(p)!==statusF) return false;
+      if(connF==='connected' && !p.connected) return false;
+      if(connF==='not-connected' && p.connected) return false;
+      return true;
     });
+    if(sortF) {
+      filtered.sort((a,b)=>{
+        switch(sortF){
+          case 'name-asc': return (a.p.name||'').localeCompare(b.p.name||'');
+          case 'name-desc': return (b.p.name||'').localeCompare(a.p.name||'');
+          case 'grade-asc': return (+a.p.grade||99)-(+b.p.grade||99);
+          case 'grade-desc': return (+b.p.grade||0)-(+a.p.grade||0);
+          case 'status-asc': return STATUS_ORDER.indexOf(statusOf(a.p))-STATUS_ORDER.indexOf(statusOf(b.p));
+          case 'interactions-desc': return (+b.p.interactionCount||0)-(+a.p.interactionCount||0);
+          case 'interactions-asc': return (+a.p.interactionCount||0)-(+b.p.interactionCount||0);
+          default: return 0;
+        }
+      });
+    }
+    gridEl.innerHTML='';
+    if(!filtered.length){
+      gridEl.innerHTML='<div class="empty"><div class="empty-icon">🔍</div><p>No students match your filters</p></div>';
+      return;
+    }
+    // The card's index has to stay the student's index in DATA, not their
+    // position in the filtered list — every action on the card looks them up
+    // by it.
+    filtered.forEach(({p,i})=>gridEl.appendChild(makeCard(p,i,sk)));
   });
   document.querySelectorAll('.edit-gated').forEach(el=>{el.style.display=canEdit?'':'none';});
   updateFilterCount();
@@ -1252,6 +1582,8 @@ function clearFilters() {
   document.getElementById('filter-grade').value='';
   document.getElementById('filter-school').value='';
   document.getElementById('filter-connected').value='';
+  const statusEl=document.getElementById('filter-status');
+  if(statusEl) statusEl.value='';
   document.getElementById('filter-sort').value='';
   const panel = document.getElementById('filter-panel');
   if (panel) panel.classList.remove('open');
@@ -1273,6 +1605,7 @@ function updateFilterCount() {
     (document.getElementById('filter-grade')||{}).value,
     (document.getElementById('filter-school')||{}).value,
     (document.getElementById('filter-connected')||{}).value,
+    (document.getElementById('filter-status')||{}).value,
     (document.getElementById('filter-sort')||{}).value,
   ].filter(Boolean).length;
   const badge = document.getElementById('filter-count');
@@ -1288,19 +1621,18 @@ function updateFilterCount() {
 
 // ── CSV EXPORT ───────────────────────────────────────────────
 function exportCSV() {
-  const rows=[['Name','Grade','School','Birthday','Interest','Section','Level','Connected','Interaction Count','Primary Goal','Notes']];
+  const rows=[['Name','Grade','School','Birthday','Connection Status','Level','Connected','Last Connection','Interaction Count','Primary Goal','Notes']];
   for(const sk of ['hs','ms']){
-    for(const sec of ['core','loose','fringe']){
-      (DATA[sk][sec]||[]).forEach(p=>{
-        rows.push([
-          p.name||'', p.grade||'', p.school||'', p.birthday||'', p.interest||'',
-          {core:'Core',loose:'Loosely Connected',fringe:'Fringe'}[sec],
-          sk==='hs'?'High School':'Middle School',
-          sk==='hs'?(p.connected?'Yes':'No'):'N/A',
-          p.interactionCount||'0', p.primaryGoal||'', (p.notes||'').replace(/[\\n\\r]+/g,' ')
-        ]);
-      });
-    }
+    (DATA[sk].students||[]).forEach(p=>{
+      rows.push([
+        p.name||'', p.grade||'', p.school||'', p.birthday||'',
+        STATUS_LABELS[statusOf(p)],
+        sk==='hs'?'High School':'Middle School',
+        p.connected?'Yes':'No',
+        p.lastConnected||'',
+        p.interactionCount||'0', p.primaryGoal||'', (p.notes||'').replace(/[\\n\\r]+/g,' ')
+      ]);
+    });
   }
   const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
@@ -1866,6 +2198,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if(open) closeModal(open.id);
     }
   });
+
+  // A password-reset email lands here as /roster?resetToken=… . Take the token
+  // into memory and strip it from the address bar before anything else runs, so
+  // it can't leak through browser history, a bookmark, or a Referer header.
+  const params = new URLSearchParams(location.search);
+  const token = params.get('resetToken');
+  if (token) {
+    params.delete('resetToken');
+    const query = params.toString();
+    history.replaceState({}, '', location.pathname + (query ? '?' + query : ''));
+    showResetForm(token);
+    return;
+  }
 
   initGate();
 });

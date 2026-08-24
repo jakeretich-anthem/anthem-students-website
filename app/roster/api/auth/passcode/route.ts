@@ -2,10 +2,24 @@ import { NextResponse } from "next/server";
 import { kvGet, kvPut } from "../../../lib/kv";
 import { setSessionCookie } from "../../../lib/auth";
 import { timingSafeEqual, generateToken } from "../../../lib/crypto";
+import { checkRateLimit, clearRateLimit, clientKey, tooManyRequests } from "../../../lib/rateLimit";
 
 type OrgSettings = { access?: { mode?: string; passcode?: string } };
 
 export async function POST(request: Request) {
+  const ip = clientKey(request);
+  if (ip) {
+    // Loose on purpose: the view-only passcode is shared, so a group arriving
+    // together shares one public IP and would otherwise lock each other out.
+    const limit = await checkRateLimit("passcode", `ip:${ip}`, 30, 15 * 60);
+    if (!limit.ok) {
+      return tooManyRequests(
+        `Too many attempts. Try again in ${Math.ceil(limit.retryAfter / 60)} minutes.`,
+        limit.retryAfter
+      );
+    }
+  }
+
   let passcode = "";
   try {
     ({ passcode = "" } = await request.json());
@@ -28,6 +42,7 @@ export async function POST(request: Request) {
   const expiresAt = Date.now() + TTL * 1000;
   await kvPut(`session:${token}`, { type: "passcode", expiresAt }, TTL);
   await setSessionCookie(token, TTL);
+  if (ip) await clearRateLimit("passcode", `ip:${ip}`);
 
   return NextResponse.json({ ok: true, expiresAt, message: "View-only mode enabled" });
 }
