@@ -38,8 +38,32 @@ export function generateToken(): string {
   return [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+export const PASSWORD_MIN_LENGTH = 10;
+
+// The rules, in the order they're shown to the person typing. The UI renders
+// this list as a live checklist so the requirements aren't a surprise on submit.
+export const PASSWORD_RULES = [
+  { id: "length", label: `At least ${PASSWORD_MIN_LENGTH} characters`, test: (p: string) => p.length >= PASSWORD_MIN_LENGTH },
+  { id: "upper", label: "An uppercase letter", test: (p: string) => /[A-Z]/.test(p) },
+  { id: "lower", label: "A lowercase letter", test: (p: string) => /[a-z]/.test(p) },
+  { id: "digit", label: "A number", test: (p: string) => /\d/.test(p) },
+];
+
+// Names the first unmet rule rather than returning a bare "Weak password", so
+// someone who is one character short is told that instead of guessing.
+export function describePasswordProblem(password = ""): string | null {
+  const failed = PASSWORD_RULES.filter((r) => !r.test(password));
+  if (!failed.length) return null;
+  if (failed.length === PASSWORD_RULES.length) {
+    return `Password needs ${PASSWORD_MIN_LENGTH}+ characters with an uppercase letter, a lowercase letter and a number.`;
+  }
+  const missing = failed.map((r) => r.label.toLowerCase());
+  const list = missing.length === 1 ? missing[0] : missing.slice(0, -1).join(", ") + " and " + missing[missing.length - 1];
+  return `Password still needs ${list}.`;
+}
+
 export function validatePasswordStrength(password = ""): boolean {
-  return password.length >= 10 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password);
+  return describePasswordProblem(password) === null;
 }
 
 // Constant-time-ish string comparison (matches the original's approach).
