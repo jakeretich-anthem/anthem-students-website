@@ -20,6 +20,7 @@ function getHTML() {
 <link rel="manifest" href="/roster/manifest.json">
 <!-- Scoped to /roster on purpose: without these the browser falls back to the
      main site's /favicon.ico, and the roster app gets its own mark. -->
+<link rel="icon" type="image/png" sizes="16x16" href="/roster-icon-16.png">
 <link rel="icon" type="image/png" sizes="32x32" href="/roster-icon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/roster-icon-192.png">
 <link rel="apple-touch-icon" href="/roster-apple-icon.png">
