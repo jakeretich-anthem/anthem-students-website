@@ -18,6 +18,11 @@ function getHTML() {
 <meta name="theme-color" content="#0a0a0f">
 <title>ASM 2026 · Worship Grow Go</title>
 <link rel="manifest" href="/roster/manifest.json">
+<!-- Scoped to /roster on purpose: without these the browser falls back to the
+     main site's /favicon.ico, and the roster app gets its own mark. -->
+<link rel="icon" type="image/png" sizes="32x32" href="/roster-icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/roster-icon-192.png">
+<link rel="apple-touch-icon" href="/roster-apple-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>${CSS}</style>
 </head>

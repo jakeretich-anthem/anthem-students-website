@@ -1,8 +1,11 @@
 import { kvGet } from "../lib/kv";
 import { SETTINGS_KEY } from "../lib/settings";
 
-const FALLBACK_ICON =
-  "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230a0a0f'/><text y='.9em' x='.5em' font-size='72' font-family='serif'>⭐</text></svg>";
+// The roster's own mark, used unless an org has uploaded a logo in settings.
+const FALLBACK_ICONS = [
+  { src: "/roster-icon-192.png", sizes: "192x192", type: "image/png" },
+  { src: "/roster-icon-512.png", sizes: "512x512", type: "image/png" },
+];
 
 type OrgSettings = { ministryName?: string; logoEnabled?: boolean; logoUrl?: string };
 
@@ -16,7 +19,7 @@ export async function GET() {
     icons.push({ src: settings.logoUrl, sizes: "192x192", type: "image/png" });
     icons.push({ src: settings.logoUrl, sizes: "512x512", type: "image/png" });
   }
-  icons.push({ src: FALLBACK_ICON, sizes: "192x192", type: "image/svg+xml" });
+  icons.push(...FALLBACK_ICONS);
 
   const manifest = {
     name: `ASM ${year} · ${name}`,
