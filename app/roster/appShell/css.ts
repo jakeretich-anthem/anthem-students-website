@@ -455,7 +455,29 @@ header { padding: 44px 0 24px; text-align: center; }
 .badge-grade { font-family: 'JetBrains Mono', monospace; font-size: 9px; background: var(--accent-glow); color: var(--accent); border: 1px solid var(--accent-border); border-radius: 20px; padding: 2px 6px; }
 .card-meta { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
 .meta-item { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; display: flex; gap: 5px; align-items: flex-start; }
-.badge-status { display: inline-block; font-size: 9px; font-family: 'JetBrains Mono', monospace; letter-spacing: .06em; padding: 3px 8px; border-radius: 20px; margin-top: 8px; }
+.badge-status { display: inline-block; font-size: 9px; font-family: 'JetBrains Mono', monospace; letter-spacing: .06em; padding: 3px 8px; border-radius: 20px; }
+.card-status-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+/* Connection Status (sheet column D). Reads as a status chip rather than a form
+   control until you interact with it — it sits on a card, not in a form. */
+.status-select, .status-chip {
+  font-size: 9px; font-family: 'JetBrains Mono', monospace; letter-spacing: .06em;
+  text-transform: uppercase; padding: 3px 8px; border-radius: 20px; line-height: 1.5;
+}
+.status-chip { display: inline-block; }
+.status-select {
+  appearance: none; cursor: pointer; padding-right: 20px; max-width: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='currentColor' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 7px center;
+  transition: filter .15s var(--ease);
+}
+.status-select:hover { filter: brightness(1.25); }
+.status-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.status-select option { background: var(--surface2); color: var(--text); text-transform: none; }
+/* background-color, not the background shorthand — these rules come after
+   .status-select and the shorthand would reset its chevron background-image. */
+.status-core   { background-color: var(--accent-glow); color: var(--accent); border: 1px solid var(--accent-border); }
+.status-loose  { background-color: rgba(96,165,250,.10); color: #60a5fa; border: 1px solid rgba(96,165,250,.24); }
+.status-fringe { background-color: var(--surface3); color: var(--muted); border: 1px solid var(--border); }
 .badge-status.connected    { background: rgba(74,222,128,.08); color: var(--connected); border: 1px solid rgba(74,222,128,.18); }
 .badge-status.not-connected { background: rgba(248,113,113,.07); color: var(--not-connected); border: 1px solid rgba(248,113,113,.16); }
 .card-edit-btn { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; border-radius: 50%; background: transparent; border: 1px solid transparent; color: var(--muted); font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: all .2s; }
@@ -695,6 +717,7 @@ header { padding: 44px 0 24px; text-align: center; }
 .field select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235a5a78' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
 .field select option { background: var(--surface2); }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field-hint { font-size: 11px; color: var(--muted); line-height: 1.4; }
 .auth-submit { background: var(--accent); border: none; color: #000; font-weight: 700; font-size: 15px; padding: 13px; border-radius: var(--radius); cursor: pointer; transition: opacity .2s; width: 100%; }
 .auth-submit:hover { opacity: .9; }
 .auth-submit:disabled { opacity: .45; cursor: not-allowed; }
@@ -900,6 +923,7 @@ input[type=file] { display: none; }
   .meta-item, .card-meta { color: #333 !important; }
   .badge-grade { background: #eee !important; color: #333 !important; border-color: #ccc !important; }
   .badge-status { border-color: #999 !important; }
+  .status-select, .status-chip { appearance: none !important; background-image: none !important; border-color: #999 !important; color: #000 !important; padding-right: 8px !important; }
   .badge-status.connected { color: #16a34a !important; background: #f0fdf4 !important; }
   .badge-status.not-connected { color: #dc2626 !important; background: #fef2f2 !important; }
   .stat { background: #f9f9f9 !important; border: 1px solid #ddd !important; color: #000 !important; }

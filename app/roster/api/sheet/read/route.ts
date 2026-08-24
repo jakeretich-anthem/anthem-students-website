@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
-import { normalizeRosterPayload } from "../../../lib/sheetSchema";
+import { requirePermission } from "../../../lib/auth";
+import { describePayloadProblem } from "../../../lib/rosterSchema";
 
-// The Apps Script's column mapping doesn't match either sheet, and it returns
-// every student in `core` with the sheet's divider rows mixed in. See
-// app/roster/lib/sheetSchema.ts for what it emits and why this translates it.
+// The Apps Script maps columns by header name and emits the app's own field
+// names, so this route forwards its payload untouched — it only checks the
+// shape first. See app/roster/lib/rosterSchema.ts for the contract.
 export async function GET() {
+  // This returns every student's name, grade, school, birthday and photo — it
+  // must never answer an anonymous caller. It did until this commit (IMP-06).
+  const perm = await requirePermission("roster", "view");
+  if (!perm.ok) return NextResponse.json({ error: perm.error }, { status: perm.status });
+
   const scriptUrl = process.env.GOOGLE_SCRIPT_URL;
   if (!scriptUrl) {
     console.error("[roster/sheet] GOOGLE_SCRIPT_URL is not set on this server.");
@@ -64,13 +70,21 @@ export async function GET() {
     return NextResponse.json({ error: `The Google Sheet rejected the request: ${upstream}.${hint}` }, { status: 502 });
   }
 
-  if (!data || typeof data !== "object" || !data.hs) {
-    console.error("[roster/sheet] unexpected payload shape, keys:", Object.keys(data ?? {}));
+  // Name the specific way the payload is wrong rather than "unexpected shape".
+  // The last mapping regression rendered as plausible-looking but wrong data on
+  // every card, which is far more expensive to notice than an error banner.
+  const problem = describePayloadProblem(data);
+  if (problem) {
+    console.error(`[roster/sheet] ${problem}; keys:`, Object.keys(data ?? {}));
     return NextResponse.json(
-      { error: "The Google Sheet returned an unexpected shape." },
+      {
+        error:
+          `The Google Sheet returned an unexpected shape — ${problem}. ` +
+          `Check that the Apps Script has been redeployed (Deploy → Manage deployments → New version).`,
+      },
       { status: 502 }
     );
   }
 
-  return NextResponse.json(normalizeRosterPayload(data));
+  return NextResponse.json(data);
 }
