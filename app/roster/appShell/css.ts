@@ -198,6 +198,56 @@ body {
   letter-spacing: .1em; transition: color .2s;
 }
 .gate-need-access:hover { color: var(--accent); }
+.gate-hint {
+  font-size: 12px; color: var(--muted); line-height: 1.6;
+  margin: 0 0 4px; text-align: left;
+}
+/* An informational gate message — "check your email", "pending approval" —
+   which is not a failure and shouldn't be red like .gate-error. */
+.gate-error.info { color: var(--accent); }
+.gate-error.ok { color: var(--connected); }
+
+/* Password field with a reveal toggle. The button sits inside the input's
+   padding, so .gate-input/.field input keep their own styles untouched. */
+.pw-wrap { position: relative; display: flex; flex-direction: column; }
+.pw-wrap input { padding-right: 62px !important; width: 100%; }
+.pw-toggle {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; padding: 4px 6px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+  transition: color .2s;
+}
+.pw-toggle:hover { color: var(--accent); }
+
+/* Live requirements checklist, so the rules aren't a surprise on submit. */
+.pw-rules { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 5px; text-align: left; }
+.pw-rules li {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: var(--muted); display: flex; align-items: center; gap: 8px;
+  transition: color .2s;
+}
+.pw-rules li::before {
+  content: '○'; font-size: 11px; color: var(--muted); transition: color .2s, content .2s;
+}
+.pw-rules li.met { color: var(--connected); }
+.pw-rules li.met::before { content: '●'; color: var(--connected); }
+
+.auth-link {
+  display: block; text-align: center; margin-top: 2px; font-size: 12px;
+  color: var(--muted); text-decoration: none;
+  font-family: 'JetBrains Mono', monospace; transition: color .2s;
+}
+.auth-link:hover { color: var(--accent); }
+.auth-note { font-size: 11px; color: var(--muted); line-height: 1.5; text-align: center; margin: 2px 0 0; }
+.auth-done { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 8px 0; }
+.auth-done-icon {
+  width: 48px; height: 48px; border-radius: 50%; display: flex;
+  align-items: center; justify-content: center; font-size: 22px;
+  background: var(--accent-glow); color: var(--connected);
+}
+.auth-done-title { font-size: 17px; font-weight: 600; }
+.auth-done-body { font-size: 13px; color: var(--muted); line-height: 1.6; margin: 0 0 6px; }
 @media (max-width: 480px) {
   .gate-lanes { flex-direction: column; }
   .gate-box { max-width: 360px; }

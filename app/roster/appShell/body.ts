@@ -39,10 +39,42 @@ export const HTML_BODY = `
         <span class="form-title">Leader Login</span>
       </div>
       <input id="gate-leader-email" class="gate-input" type="email" placeholder="Email" autocomplete="email">
-      <input id="gate-leader-password" class="gate-input" type="password" placeholder="Password" autocomplete="current-password">
+      <div class="pw-wrap">
+        <input id="gate-leader-password" class="gate-input" type="password" placeholder="Password" autocomplete="current-password">
+        <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('gate-leader-password',this)">Show</button>
+      </div>
       <button class="gate-btn" id="gate-leader-btn" onclick="doGateLeaderLogin()">Sign In →</button>
       <div class="gate-error" id="gate-leader-error"></div>
-      <a class="gate-link" href="#" onclick="event.preventDefault();openAuthModal('signup')">New leader? Sign up</a>
+      <a class="gate-link" href="#" onclick="event.preventDefault();showForgotForm()">Forgot your password?</a>
+      <a class="gate-link" href="#" onclick="event.preventDefault();openAuthModal('signup')">New leader? Request access</a>
+    </div>
+
+    <!-- Forgot-password sub-form -->
+    <div class="gate-form" id="gate-forgot-form" style="display:none">
+      <div class="gate-form-back">
+        <button class="back-btn" onclick="showLeaderForm()">← Back</button>
+        <span class="form-title">Reset Password</span>
+      </div>
+      <p class="gate-hint">Enter the email you sign in with and we'll send you a link to set a new password. The link lasts 30 minutes.</p>
+      <input id="gate-forgot-email" class="gate-input" type="email" placeholder="Email" autocomplete="email">
+      <button class="gate-btn" id="gate-forgot-btn" onclick="doForgotPassword()">Send reset link →</button>
+      <div class="gate-error" id="gate-forgot-error"></div>
+    </div>
+
+    <!-- Set-new-password sub-form (shown when the page opens with ?resetToken=) -->
+    <div class="gate-form" id="gate-reset-form" style="display:none">
+      <div class="gate-form-back">
+        <button class="back-btn" onclick="showLeaderForm()">← Back</button>
+        <span class="form-title">Choose a New Password</span>
+      </div>
+      <div class="pw-wrap">
+        <input id="gate-reset-password" class="gate-input" type="password" placeholder="New password" autocomplete="new-password">
+        <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('gate-reset-password',this)">Show</button>
+      </div>
+      <input id="gate-reset-confirm" class="gate-input" type="password" placeholder="Confirm new password" autocomplete="new-password">
+      <ul class="pw-rules" id="gate-reset-rules"></ul>
+      <button class="gate-btn" id="gate-reset-btn" onclick="doResetPassword()">Set password →</button>
+      <div class="gate-error" id="gate-reset-error"></div>
     </div>
 
     <a class="gate-need-access" href="#" onclick="event.preventDefault();openAuthModal('signup')">Need access? →</a>
@@ -589,16 +621,62 @@ export const HTML_BODY = `
     </div>
     <div id="auth-login-form" class="auth-form">
       <div class="field"><label>Email</label><input type="email" id="login-email" placeholder="you@example.com" autocomplete="email"></div>
-      <div class="field"><label>Password</label><input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"></div>
+      <div class="field"><label>Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+          <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('login-password',this)">Show</button>
+        </div>
+      </div>
       <div class="auth-msg" id="login-msg"></div>
       <button class="auth-submit" id="login-submit" onclick="doLogin()">Log In</button>
+      <a class="auth-link" href="#" onclick="event.preventDefault();closeAuthModal();showForgotForm()">Forgot your password?</a>
     </div>
     <div id="auth-signup-form" class="auth-form" style="display:none">
       <div class="field"><label>Full Name</label><input type="text" id="signup-name" placeholder="First Last" autocomplete="name"></div>
       <div class="field"><label>Email</label><input type="email" id="signup-email" placeholder="you@example.com" autocomplete="email"></div>
-      <div class="field"><label>Password</label><input type="password" id="signup-password" placeholder="Min 8 characters" autocomplete="new-password"></div>
+      <div class="field"><label>Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="signup-password" placeholder="Create a password" autocomplete="new-password">
+          <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('signup-password',this)">Show</button>
+        </div>
+      </div>
+      <ul class="pw-rules" id="signup-rules"></ul>
       <div class="auth-msg" id="signup-msg"></div>
-      <button class="auth-submit" id="signup-submit" onclick="doSignup()">Create Account</button>
+      <button class="auth-submit" id="signup-submit" onclick="doSignup()">Request Access</button>
+      <p class="auth-note">Your request goes to a team admin for approval. You'll get an email once it's approved.</p>
+    </div>
+    <div id="auth-signup-done" class="auth-done" style="display:none">
+      <div class="auth-done-icon">✓</div>
+      <div class="auth-done-title">Request sent</div>
+      <p class="auth-done-body" id="auth-done-body">A team admin will review it. You'll get an email as soon as it's approved.</p>
+      <button class="auth-submit" onclick="closeAuthModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHANGE PASSWORD -->
+<div class="modal-overlay" id="password-modal">
+  <div class="modal">
+    <button class="modal-close" id="password-modal-close" onclick="closeModal('password-modal')">✕</button>
+    <div class="modal-title" id="password-modal-title">Change Password</div>
+    <div class="modal-sub" id="password-modal-sub">Choose a new password for your account</div>
+    <div class="auth-form">
+      <div class="field"><label>Current Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="pw-old" placeholder="••••••••" autocomplete="current-password">
+          <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('pw-old',this)">Show</button>
+        </div>
+      </div>
+      <div class="field"><label>New Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="pw-new" placeholder="New password" autocomplete="new-password">
+          <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('pw-new',this)">Show</button>
+        </div>
+      </div>
+      <div class="field"><label>Confirm New Password</label><input type="password" id="pw-confirm" placeholder="Repeat new password" autocomplete="new-password"></div>
+      <ul class="pw-rules" id="pw-rules"></ul>
+      <div class="auth-msg" id="pw-msg"></div>
+      <button class="auth-submit" id="pw-submit" onclick="doChangePassword()">Update Password</button>
     </div>
   </div>
 </div>
@@ -688,6 +766,7 @@ export const HTML_BODY = `
     </div>
     <div class="modal-actions">
       <button class="btn-save" onclick="saveProfile()">Save Profile</button>
+      <button class="btn-secondary" onclick="closeProfileModal();openChangePassword(false)">Change Password</button>
       <button class="btn-secondary" onclick="closeProfileModal()">Cancel</button>
       <button class="btn-danger" onclick="logout()">Log Out</button>
     </div>

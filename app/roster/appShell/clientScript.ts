@@ -13,6 +13,7 @@ let editInteractionContext = null;
 let pendingDeleteInteraction = null;
 let currentInteractions = [];
 let toastTimer = null;
+let resetToken = null;        // held in memory only; stripped from the URL on boot
 
 // ── ORG SETTINGS ────────────────────────────────────────────
 let orgSettings = null;       // loaded from /api/settings/public on boot
@@ -185,12 +186,35 @@ async function initGate() {
   showLanes();
 }
 
-function showLanes() {
-  const lf = document.getElementById('gate-leader-form');
-  const pf = document.getElementById('gate-passcode-form');
+// Every gate sub-form lives in the DOM at once and is toggled by display, so
+// switching between them means hiding all of them first.
+const GATE_FORMS = ['gate-passcode-form','gate-leader-form','gate-forgot-form','gate-reset-form'];
+function hideGateForms() {
+  GATE_FORMS.forEach(id => { const el=document.getElementById(id); if (el) el.style.display='none'; });
+}
+function openGateForm(id) {
   const la = document.getElementById('gate-lanes');
-  if (lf) lf.style.display = 'none';
-  if (pf) pf.style.display = 'none';
+  if (la) la.style.display = 'none';
+  hideGateForms();
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'flex';
+  return el;
+}
+function clearGateMsg(id) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent=''; el.className='gate-error'; }
+}
+// tone: '' (error, the default red), 'info' or 'ok'
+function setGateMsg(id, text, tone) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'gate-error' + (tone ? ' ' + tone : '');
+}
+
+function showLanes() {
+  hideGateForms();
+  const la = document.getElementById('gate-lanes');
   if (la) la.style.display = 'flex';
   // Hide passcode lane if access mode is leaders-only
   const passcodeLane = document.getElementById('gate-lane-passcode');
@@ -201,19 +225,129 @@ function showLanes() {
 }
 
 function showPasscodeForm() {
-  document.getElementById('gate-lanes').style.display = 'none';
-  const pf = document.getElementById('gate-passcode-form');
-  pf.style.display = 'flex';
-  document.getElementById('gate-input').focus();
-  document.getElementById('gate-input').onkeydown = e => { if (e.key==='Enter') checkPasscode(); };
+  openGateForm('gate-passcode-form');
+  clearGateMsg('gate-error');
+  const input = document.getElementById('gate-input');
+  input.focus();
+  input.onkeydown = e => { if (e.key==='Enter') checkPasscode(); };
 }
 
 function showLeaderForm() {
-  document.getElementById('gate-lanes').style.display = 'none';
-  const lf = document.getElementById('gate-leader-form');
-  lf.style.display = 'flex';
-  document.getElementById('gate-leader-email').focus();
-  document.getElementById('gate-leader-password').onkeydown = e => { if (e.key==='Enter') doGateLeaderLogin(); };
+  openGateForm('gate-leader-form');
+  clearGateMsg('gate-leader-error');
+  const email = document.getElementById('gate-leader-email');
+  const pw = document.getElementById('gate-leader-password');
+  email.focus();
+  // Enter submits from either field — previously only the password did.
+  email.onkeydown = e => { if (e.key==='Enter') doGateLeaderLogin(); };
+  pw.onkeydown = e => { if (e.key==='Enter') doGateLeaderLogin(); };
+}
+
+function showForgotForm() {
+  openGateForm('gate-forgot-form');
+  clearGateMsg('gate-forgot-error');
+  // Carry over whatever they already typed on the sign-in form.
+  const typed = (document.getElementById('gate-leader-email')||{}).value || '';
+  const input = document.getElementById('gate-forgot-email');
+  if (typed && !input.value) input.value = typed;
+  input.focus();
+  input.onkeydown = e => { if (e.key==='Enter') doForgotPassword(); };
+}
+
+function showResetForm(token) {
+  showScreen('gate');
+  resetToken = token;
+  openGateForm('gate-reset-form');
+  clearGateMsg('gate-reset-error');
+  const pw = document.getElementById('gate-reset-password');
+  const confirm = document.getElementById('gate-reset-confirm');
+  pw.value=''; confirm.value='';
+  wirePasswordRules('gate-reset-password','gate-reset-rules');
+  confirm.onkeydown = e => { if (e.key==='Enter') doResetPassword(); };
+  pw.focus();
+}
+
+// ── PASSWORD HELPERS ─────────────────────────────────────────
+// Mirrors PASSWORD_RULES in lib/crypto.ts. The server is still the authority —
+// this only saves a round trip and stops the rules being a surprise.
+const PW_RULES = [
+  { label: 'At least 10 characters', test: p => p.length >= 10 },
+  { label: 'An uppercase letter',    test: p => /[A-Z]/.test(p) },
+  { label: 'A lowercase letter',     test: p => /[a-z]/.test(p) },
+  { label: 'A number',               test: p => /\\d/.test(p) },
+];
+function passwordProblem(pw) {
+  const failed = PW_RULES.filter(r => !r.test(pw||''));
+  if (!failed.length) return null;
+  return 'Password needs: ' + failed.map(r => r.label.toLowerCase()).join(', ') + '.';
+}
+function renderPasswordRules(pw, listId) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  list.innerHTML = PW_RULES.map(r =>
+    '<li class="' + (r.test(pw||'') ? 'met' : '') + '">' + r.label + '</li>'
+  ).join('');
+}
+function wirePasswordRules(inputId, listId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  renderPasswordRules(input.value, listId);
+  input.oninput = () => renderPasswordRules(input.value, listId);
+}
+function togglePassword(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.textContent = show ? 'Hide' : 'Show';
+  btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+}
+
+async function doForgotPassword() {
+  const email = ((document.getElementById('gate-forgot-email')||{}).value||'').trim().toLowerCase();
+  const btn = document.getElementById('gate-forgot-btn');
+  if (!email) { setGateMsg('gate-forgot-error','Enter your email address.'); return; }
+  btn.disabled=true; btn.textContent='Sending…'; clearGateMsg('gate-forgot-error');
+  try {
+    const res = await fetch('/roster/api/auth/forgot-password', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email}),
+    });
+    const data = await res.json();
+    if (res.status === 429) setGateMsg('gate-forgot-error', data.error||'Too many requests. Try again later.');
+    // The server answers the same way whether or not the account exists, so
+    // this message can't be used to find out who has an account.
+    else setGateMsg('gate-forgot-error', data.message||'If that account exists, a reset link is on its way.', 'ok');
+  } catch(_) { setGateMsg('gate-forgot-error','Network error. Please try again.'); }
+  btn.disabled=false; btn.textContent='Send reset link →';
+}
+
+async function doResetPassword() {
+  const pw = (document.getElementById('gate-reset-password')||{}).value||'';
+  const confirm = (document.getElementById('gate-reset-confirm')||{}).value||'';
+  const btn = document.getElementById('gate-reset-btn');
+  const problem = passwordProblem(pw);
+  if (problem) { setGateMsg('gate-reset-error', problem); return; }
+  if (pw !== confirm) { setGateMsg('gate-reset-error', "Those passwords don't match."); return; }
+
+  btn.disabled=true; btn.textContent='Saving…'; clearGateMsg('gate-reset-error');
+  try {
+    const res = await fetch('/roster/api/auth/reset-password', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({token: resetToken, newPassword: pw, confirmPassword: confirm}),
+    });
+    const data = await res.json();
+    if (data.success) {
+      resetToken = null;
+      showLeaderForm();
+      if (data.email) document.getElementById('gate-leader-email').value = data.email;
+      setGateMsg('gate-leader-error','Password updated. Sign in with your new password.','ok');
+      showToast('✓ Password updated','ok');
+    } else {
+      setGateMsg('gate-reset-error', data.error||'Could not reset your password.');
+    }
+  } catch(_) { setGateMsg('gate-reset-error','Network error. Please try again.'); }
+  btn.disabled=false; btn.textContent='Set password →';
 }
 
 async function checkPasscode() {
@@ -241,12 +375,11 @@ async function checkPasscode() {
 }
 
 async function doGateLeaderLogin() {
-  const email = (document.getElementById('gate-leader-email')||{}).value?.trim()||'';
+  const email = ((document.getElementById('gate-leader-email')||{}).value||'').trim().toLowerCase();
   const password = (document.getElementById('gate-leader-password')||{}).value||'';
   const btn = document.getElementById('gate-leader-btn');
-  const err = document.getElementById('gate-leader-error');
-  if (!email||!password) { err.textContent='Please fill in all fields.'; return; }
-  btn.disabled=true; btn.textContent='Signing in…'; err.textContent='';
+  if (!email||!password) { setGateMsg('gate-leader-error','Please fill in all fields.'); return; }
+  btn.disabled=true; btn.textContent='Signing in…'; clearGateMsg('gate-leader-error');
   try {
     const res = await fetch('/roster/api/auth/login', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -255,13 +388,26 @@ async function doGateLeaderLogin() {
     const data = await res.json();
     if (data.success) {
       currentUser = data.user; canEdit = ['approved','admin','leader'].includes(currentUser.role);
-      initApp();
+      await afterLogin();
       showToast('Welcome back, '+currentUser.name+'!', 'ok');
     } else {
-      err.textContent = data.error || 'Login failed.';
+      // A pending account isn't a failed sign-in — the password was right, the
+      // request just hasn't been approved yet. Say so in a non-alarming tone.
+      setGateMsg('gate-leader-error', data.error || 'Login failed.', data.reason==='pending' ? 'info' : '');
     }
-  } catch(_) { err.textContent = 'Network error. Please try again.'; }
+  } catch(_) { setGateMsg('gate-leader-error','Network error. Please try again.'); }
   btn.disabled=false; btn.textContent='Sign In →';
+}
+
+// Shared tail for both sign-in paths (gate form and auth modal). An account
+// created through an invite carries mustChangePassword — it has a password
+// somebody else chose, so it can't be allowed into the app as-is.
+async function afterLogin() {
+  if (currentUser && currentUser.mustChangePassword) {
+    openChangePassword(true);
+    return;
+  }
+  await initApp();
 }
 
 function showNeedAccess() {
@@ -573,53 +719,116 @@ function switchTab(sk, btn) {
 function openAuthModal(tab='login') { switchAuthTab(tab); openModal('auth-modal'); }
 function closeAuthModal() { closeModal('auth-modal'); }
 function switchAuthTab(tab) {
+  // The success panel replaces the signup form after a request goes through;
+  // switching tabs puts the form back.
+  document.getElementById('auth-signup-done').style.display = 'none';
   document.getElementById('auth-login-form').style.display  = tab==='login'  ? 'flex' : 'none';
   document.getElementById('auth-signup-form').style.display = tab==='signup' ? 'flex' : 'none';
   document.getElementById('tab-login-btn').classList.toggle('active', tab==='login');
   document.getElementById('tab-signup-btn').classList.toggle('active', tab==='signup');
-  document.getElementById('auth-modal-title').textContent = tab==='login' ? 'Welcome Back' : 'Join the Team';
-  ['login-msg','signup-msg'].forEach(id => { document.getElementById(id).textContent=''; });
+  document.getElementById('auth-modal-title').textContent = tab==='login' ? 'Welcome Back' : 'Request Access';
+  ['login-msg','signup-msg'].forEach(id => { const el=document.getElementById(id); el.textContent=''; el.className='auth-msg'; });
+  if (tab==='signup') wirePasswordRules('signup-password','signup-rules');
+}
+
+// ── CHANGE PASSWORD ──────────────────────────────────────────
+// forced=true is the invite path: the account has a password someone else
+// chose, so the modal can't be dismissed until it's replaced.
+let passwordChangeForced = false;
+function openChangePassword(forced) {
+  passwordChangeForced = !!forced;
+  ['pw-old','pw-new','pw-confirm'].forEach(id => { document.getElementById(id).value=''; });
+  const msg = document.getElementById('pw-msg'); msg.textContent=''; msg.className='auth-msg';
+  document.getElementById('password-modal-title').textContent = forced ? 'Set Your Own Password' : 'Change Password';
+  document.getElementById('password-modal-sub').textContent = forced
+    ? 'This account was set up with a temporary password. Choose your own to continue.'
+    : 'Choose a new password for your account';
+  document.getElementById('password-modal-close').style.display = forced ? 'none' : '';
+  wirePasswordRules('pw-new','pw-rules');
+  openModal('password-modal');
+}
+
+async function doChangePassword() {
+  const oldPassword=v('pw-old'), newPassword=v('pw-new'), confirmPassword=v('pw-confirm');
+  const msg=document.getElementById('pw-msg'), btn=document.getElementById('pw-submit');
+  if (!oldPassword||!newPassword||!confirmPassword) { setMsg(msg,'Please fill in all fields.','error'); return; }
+  const problem = passwordProblem(newPassword);
+  if (problem) { setMsg(msg, problem, 'error'); return; }
+  if (newPassword!==confirmPassword) { setMsg(msg,"Those passwords don't match.",'error'); return; }
+
+  btn.disabled=true; btn.textContent='Updating…'; msg.textContent='';
+  try {
+    const res = await fetch('/roster/api/auth/change-password', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({oldPassword,newPassword,confirmPassword}),
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeModal('password-modal');
+      showToast('✓ Password updated','ok');
+      if (passwordChangeForced) { passwordChangeForced=false; await initApp(); }
+    } else setMsg(msg, data.error||'Could not update your password.','error');
+  } catch(_) { setMsg(msg,'Network error. Please try again.','error'); }
+  btn.disabled=false; btn.textContent='Update Password';
 }
 
 async function doLogin() {
-  const email = v('login-email'), password = v('login-password');
+  const email = v('login-email').trim().toLowerCase(), password = v('login-password');
   const msg = document.getElementById('login-msg');
   const btn = document.getElementById('login-submit');
   if (!email||!password) { setMsg(msg,'Please fill in all fields.','error'); return; }
   btn.disabled=true; btn.textContent='Logging in…'; msg.textContent='';
-  const res = await fetch('/roster/api/auth/login', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({email,password}),
-  });
-  const data = await res.json();
-  btn.disabled=false; btn.textContent='Log In';
-  if (data.success) {
-    currentUser=data.user; canEdit=['approved','admin','leader'].includes(currentUser.role);
-    closeAuthModal();
-    // Same entry point the gate's Sign In uses. This branch used to call
-    // renderAll() directly, which drew the empty in-memory DATA and left the
-    // roster reading "No students here yet" until the page was reloaded —
-    // loadRoster() is only ever called from initApp().
-    await initApp();
-    showToast('✓ Welcome back, '+currentUser.name+'!','ok');
-  } else setMsg(msg, data.error||'Login failed.','error');
+  try {
+    const res = await fetch('/roster/api/auth/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email,password}),
+    });
+    const data = await res.json();
+    btn.disabled=false; btn.textContent='Log In';
+    if (data.success) {
+      currentUser=data.user; canEdit=['approved','admin','leader'].includes(currentUser.role);
+      closeAuthModal();
+      // Same entry point the gate's Sign In uses. This branch used to call
+      // renderAll() directly, which drew the empty in-memory DATA and left the
+      // roster reading "No students here yet" until the page was reloaded —
+      // loadRoster() is only ever called from initApp().
+      await afterLogin();
+      showToast('✓ Welcome back, '+currentUser.name+'!','ok');
+    } else setMsg(msg, data.error||'Login failed.','error');
+  } catch(_) {
+    btn.disabled=false; btn.textContent='Log In';
+    setMsg(msg,'Network error. Please try again.','error');
+  }
 }
 
 async function doSignup() {
-  const name=v('signup-name'), email=v('signup-email'), password=v('signup-password');
+  const name=v('signup-name').trim(), email=v('signup-email').trim().toLowerCase(), password=v('signup-password');
   const msg=document.getElementById('signup-msg'), btn=document.getElementById('signup-submit');
   if (!name||!email||!password) { setMsg(msg,'Please fill in all fields.','error'); return; }
-  btn.disabled=true; btn.textContent='Creating…'; msg.textContent='';
-  const res = await fetch('/roster/api/auth/signup', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({name,email,password}),
-  });
-  const data = await res.json();
-  btn.disabled=false; btn.textContent='Create Account';
-  if (data.success) {
-    setMsg(msg,'✓ '+data.message,'success');
-    ['signup-name','signup-email','signup-password'].forEach(id=>{ document.getElementById(id).value=''; });
-  } else setMsg(msg,data.error||'Signup failed.','error');
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) { setMsg(msg,'That email address doesn\\'t look right.','error'); return; }
+  const problem = passwordProblem(password);
+  if (problem) { setMsg(msg, problem, 'error'); return; }
+
+  btn.disabled=true; btn.textContent='Sending…'; msg.textContent='';
+  try {
+    const res = await fetch('/roster/api/auth/signup', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name,email,password}),
+    });
+    const data = await res.json();
+    btn.disabled=false; btn.textContent='Request Access';
+    if (data.success) {
+      // Swap the filled-in form for a confirmation, so it's obvious the
+      // request went somewhere and there's nothing left to do.
+      ['signup-name','signup-email','signup-password'].forEach(id=>{ document.getElementById(id).value=''; });
+      document.getElementById('auth-signup-form').style.display='none';
+      document.getElementById('auth-done-body').textContent = data.message || "A team admin will review it. You'll get an email as soon as it's approved.";
+      document.getElementById('auth-signup-done').style.display='flex';
+    } else setMsg(msg,data.error||'Could not send your request.','error');
+  } catch(_) {
+    btn.disabled=false; btn.textContent='Request Access';
+    setMsg(msg,'Network error. Please try again.','error');
+  }
 }
 
 async function logout() {
@@ -1243,7 +1452,8 @@ async function loadAdminUsers() {
         '<td><span class="role-badge '+u.role+'">'+u.role+'</span></td>'+
         '<td style="color:var(--muted);font-family:\\'JetBrains Mono\\',monospace;font-size:11px">'+(u.createdAt?new Date(u.createdAt).toLocaleDateString():'—')+'</td>'+
         '<td><div class="btn-row">'+
-          (isPending?'<button class="role-btn approve" onclick="updateUser(\\''+u.email+'\\',\\'approved\\')">Approve</button>':'')+
+          (isPending?'<button class="role-btn approve" onclick="updateUser(\\''+u.email+'\\',\\'leader\\')">Approve</button>':'')+
+          (isPending&&!isSelf?'<button class="role-btn revoke" onclick="declineUser(\\''+u.email+'\\')">Decline</button>':'')+
           (!isAdmin?'<label class="leader-toggle" title="Toggle leader access"><input type="checkbox" '+leaderChecked+' '+leaderDisabled+' onchange="toggleLeader(\\''+u.email+'\\',this.checked)"><span>Leader</span></label>':'')+
           (!isSelf&&!isAdmin?'<button class="role-btn mk-admin" onclick="updateUser(\\''+u.email+'\\',\\'admin\\')">→ Admin</button>':'')+
           (!isSelf&&!isPending?'<button class="role-btn revoke" onclick="updateUser(\\''+u.email+'\\',\\'pending\\')">Revoke</button>':'')+
@@ -1280,6 +1490,16 @@ async function updateUser(email,role) {
   const res=await fetch('/roster/api/admin/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,role})});
   const data=await res.json();
   if (data.success) { showToast('✓ Updated','ok'); loadAdminUsers(); }
+  else showToast(data.error||'Failed','error');
+}
+
+// Matches declining from the email link: the account is deleted outright and
+// the person is told nothing. They can request again later if they want to.
+async function declineUser(email) {
+  if (!window.confirm('Decline and delete the request from '+email+'?\\n\\nThey will not be notified.')) return;
+  const res=await fetch('/roster/api/admin/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,action:'delete'})});
+  const data=await res.json();
+  if (data.success) { showToast('Request declined','ok'); loadAdminUsers(); }
   else showToast(data.error||'Failed','error');
 }
 
@@ -1978,6 +2198,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if(open) closeModal(open.id);
     }
   });
+
+  // A password-reset email lands here as /roster?resetToken=… . Take the token
+  // into memory and strip it from the address bar before anything else runs, so
+  // it can't leak through browser history, a bookmark, or a Referer header.
+  const params = new URLSearchParams(location.search);
+  const token = params.get('resetToken');
+  if (token) {
+    params.delete('resetToken');
+    const query = params.toString();
+    history.replaceState({}, '', location.pathname + (query ? '?' + query : ''));
+    showResetForm(token);
+    return;
+  }
 
   initGate();
 });

@@ -1,21 +1,21 @@
 import { kvDelete, kvGet, kvPut } from "../../../../lib/kv";
 import type { RosterUser } from "../../../../lib/auth";
 import { hashToken } from "../../../../lib/crypto";
-import { sendEmail } from "../../../../lib/email";
-import { resultPage } from "../resultPage";
+import { emailLayout, sendEmail } from "../../../../lib/email";
+import { siteOrigin } from "../../../../lib/origin";
+import { readToken, resultPage } from "../resultPage";
 
-// One-click action link from the "new account request" email. The token
-// itself is the authorization (same trust model as the password-reset
-// link) — whoever received the admin notification email can click it.
-export async function GET(request: Request) {
-  const token = new URL(request.url).searchParams.get("token");
+// POST, not GET: the token in the notification email is the whole
+// authorization, and things other than the recipient follow links in an inbox.
+// The admin gets here by pressing Approve on the review page.
+export async function POST(request: Request) {
+  const token = await readToken(request);
   if (!token) return resultPage("Missing link", "This approval link is missing its token.", false);
 
-  const tokenHash = await hashToken(token);
-  const key = `signupAction:${tokenHash}`;
-  const action = await kvGet<{ email: string; used?: boolean }>(key);
+  const key = `signupAction:${await hashToken(token)}`;
+  const action = await kvGet<{ email: string }>(key);
   if (!action) {
-    return resultPage("Link expired", "This approval link has expired or was already used.", false);
+    return resultPage("Link expired", "This request has expired or was already decided.", false);
   }
 
   const userKey = `user:${action.email}`;
@@ -27,11 +27,22 @@ export async function GET(request: Request) {
   await kvPut(userKey, target);
   await kvDelete(key);
 
+  await kvPut(
+    `audit:user-status:${Date.now()}:${target.email}`,
+    { actor: "email-approval-link", email: target.email, role: "leader", status: "approved", createdAt: new Date().toISOString() },
+    180 * 24 * 60 * 60
+  );
+
   await sendEmail({
     to: target.email!,
-    subject: "Account approved",
-    html: "<p>Your account has been approved. You can now log in.</p>",
+    subject: "You're approved — welcome to ASM Roster",
+    html: emailLayout({
+      heading: "Your account is approved",
+      body: `<p style="margin:0">Hi ${target.name ? target.name.split(" ")[0] : "there"} — you now have leader access to the ASM Roster. Sign in with the email and password you signed up with.</p>`,
+      button: { label: "Sign in →", url: `${siteOrigin(request)}/roster` },
+      footer: "Forgot the password you set? Use the “Forgot password?” link on the sign-in screen.",
+    }),
   });
 
-  return resultPage("Approved ✓", `${target.name} (${target.email}) now has leader access.`, true);
+  return resultPage("Approved ✓", `${target.name} (${target.email}) now has leader access and has been emailed.`, true);
 }
