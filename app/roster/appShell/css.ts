@@ -921,7 +921,18 @@ input[type=file] { display: none; }
 .theme-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
 /* Same control, three longer labels ("Middle School" against a third of the
    modal), so it gets a size down rather than wrapping. */
-.theme-btn.tab-pref-btn { font-size: 12px; padding: 9px 6px; }
+/* Looks like .theme-btn but carries a class of its own on purpose: applyTheme()
+   clears .active from every .theme-btn on the page, which wiped this row's
+   selection whenever the theme was changed. Sized down — the labels are longer. */
+.tab-pref-btn {
+  flex: 1; padding: 9px 6px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border2); background: var(--surface2);
+  color: var(--text2); font-size: 12px; cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: all .2s var(--ease);
+}
+.tab-pref-btn:hover { border-color: var(--accent-border); color: var(--text); }
+.tab-pref-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
 
 /* ── CROP MODAL ───────────────────────────────────────────── */
 .crop-modal-inner { max-width: 380px; }

@@ -764,9 +764,9 @@ export const HTML_BODY = `
     <div class="field">
       <label>Default Group</label>
       <div class="theme-toggle-row">
-        <button id="tab-pref-btn-hs"   class="theme-btn tab-pref-btn" onclick="setDefaultTabPref('hs')">High School</button>
-        <button id="tab-pref-btn-ms"   class="theme-btn tab-pref-btn" onclick="setDefaultTabPref('ms')">Middle School</button>
-        <button id="tab-pref-btn-last" class="theme-btn tab-pref-btn" onclick="setDefaultTabPref('last')">Last used</button>
+        <button id="tab-pref-btn-hs"   class="tab-pref-btn" onclick="setDefaultTabPref('hs')">High School</button>
+        <button id="tab-pref-btn-ms"   class="tab-pref-btn" onclick="setDefaultTabPref('ms')">Middle School</button>
+        <button id="tab-pref-btn-last" class="tab-pref-btn" onclick="setDefaultTabPref('last')">Last used</button>
       </div>
       <div class="field-hint">Which list opens when you come back. Both are always available — this only picks the starting one.</div>
     </div>

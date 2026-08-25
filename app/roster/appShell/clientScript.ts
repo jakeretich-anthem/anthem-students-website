@@ -934,7 +934,7 @@ function openProfileModal() {
   const msPref=document.getElementById('tab-pref-btn-ms');
   if (hsPref) hsPref.textContent=dashTabLabel('hs');
   if (msPref) msPref.textContent=dashTabLabel('ms');
-  setDefaultTabPref(currentUser.defaultTab||'last');
+  paintDefaultTabPref(currentUser.defaultTab||'last');
   const img=document.getElementById('profile-av-img');
   const thumb=driveThumb(currentUser.photoUrl);
   if(thumb){img.src=thumb;img.style.display='';img.classList.remove('loaded');}
@@ -943,10 +943,12 @@ function openProfileModal() {
 }
 function closeProfileModal() { closeModal('profile-modal'); }
 
-// Held until Save Profile rather than written on click — the rest of this
-// modal works that way, and a half-changed profile shouldn't be persisted
-// because someone tapped a button and then cancelled.
-function setDefaultTabPref(sk) {
+// Saves on tap rather than waiting for Save Profile. It was staged behind the
+// Save button at first, which read as broken: the Appearance row directly above
+// applies the moment you touch it, so this one has to as well.
+// Paint only — opening the modal must not write anything or move the roster
+// underneath it.
+function paintDefaultTabPref(sk) {
   defaultTabPref=sk;
   ['hs','ms','last'].forEach(k=>{
     const b=document.getElementById('tab-pref-btn-'+k);
@@ -954,17 +956,40 @@ function setDefaultTabPref(sk) {
   });
 }
 
+async function setDefaultTabPref(sk) {
+  paintDefaultTabPref(sk);
+  if (currentUser) currentUser.defaultTab=sk;
+
+  // Switch behind the modal so the choice is visibly in effect now, rather
+  // than only proving itself on the next visit. 'last' means "leave it alone".
+  if (sk==='hs'||sk==='ms') switchTab(sk);
+
+  // A passcode session has no account record to write to — switchTab() above
+  // has already recorded it on this device, which is all such a session gets.
+  if (!currentUser || !currentUser.email) return;
+
+  try {
+    const res=await fetch('/roster/api/profile/update',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({defaultTab:sk}),
+    });
+    const data=await res.json();
+    if (!data.success) throw new Error(data.error||'Failed');
+  } catch(e) {
+    showToast('Could not save your default group','error');
+  }
+}
+
 async function saveProfile() {
   if (!currentUser) return;
   const name=v('profile-name-input'), leaderSince=v('profile-since-input'), funFact=v('profile-funfact-input');
-  const defaultTab=defaultTabPref;
   const res=await fetch('/roster/api/profile/update',{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({name,leaderSince,funFact,defaultTab}),
+    body:JSON.stringify({name,leaderSince,funFact}),
   });
   const data=await res.json();
   if (data.success) {
-    Object.assign(currentUser,{name,leaderSince,funFact,defaultTab});
+    Object.assign(currentUser,{name,leaderSince,funFact});
     updateNav(); closeProfileModal(); showToast('✓ Profile updated','ok');
   } else showToast(data.error||'Update failed','error');
 }
