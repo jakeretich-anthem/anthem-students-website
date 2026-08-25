@@ -12,6 +12,10 @@ let interactionKey = null;
 let editInteractionContext = null;
 let pendingDeleteInteraction = null;
 let currentInteractions = [];
+let currentNotes = [];        // the open student's notes, for in-place edit/delete
+let noteConfirmDelete = null; // id of the note whose Delete button is armed
+let noteEditingId = null;     // id of the note currently open for editing
+let defaultTabPref = 'last';  // profile modal's pending Default Group choice
 let toastTimer = null;
 let resetToken = null;        // held in memory only; stripped from the URL on boot
 
@@ -397,6 +401,7 @@ async function initApp() {
   await refreshCurrentUser();
   await loadOrgSettings();
   await loadRoster();
+  applyDefaultTab();
 }
 
 async function refreshCurrentUser() {
@@ -481,7 +486,7 @@ async function loadRoster() {
       error = 'The roster sheet came back in a shape we could not read.';
     } else {
       DATA = data;
-      await Promise.all([loadGoals(), loadInteractionCounts()]);
+      await Promise.all([loadGoals(), loadInteractionCounts(), loadNoteCounts()]);
     }
   } catch(e) {
     error = 'Could not reach the server. Check your connection and try again.';
@@ -528,6 +533,20 @@ async function loadInteractionCounts() {
   interactionCountsOk = ok;
 }
 
+// Note counts for the dashboard's "N students have notes" fact. The notes
+// themselves load per-student when their detail screen opens, the same way the
+// hangout log does — no card shows them, so there is nothing to wait on here.
+async function loadNoteCounts() {
+  await Promise.all(['hs','ms'].map(async sk => {
+    let counts = {};
+    try {
+      const res = await fetch('/roster/api/student/notes?sk='+sk);
+      if (res.ok) counts = (await res.json()).counts || {};
+    } catch(e) { /* additive — a failure here shouldn't blank the roster */ }
+    (DATA[sk].students||[]).forEach(p => { p.noteCount = counts[p.id] || 0; });
+  }));
+}
+
 function showRosterError(message) {
   const el = document.getElementById('roster-error');
   if (!el) return;
@@ -572,6 +591,9 @@ function renderGrid(data, id, sk) {
 function makeCard(person, idx, sk) {
   const card = document.createElement('div');
   card.className='card';
+  // paintConnected() finds the card by these after a toggle, rather than
+  // rebuilding the whole grid mid-tap.
+  card.dataset.sk=sk; card.dataset.idx=idx;
   const g = GRADIENTS[idx % GRADIENTS.length];
   const thumb = driveThumb(person.photoUrl);
   const age = calcAge(person.birthday);
@@ -580,11 +602,20 @@ function makeCard(person, idx, sk) {
   const meta = [
     (tr.school!==false) && person.school   ? '🏫 '+person.school : '',
     (tr.birthdays!==false) && person.birthday ? '🎂 '+formatDate(person.birthday)+((tr.age!==false)&&age?' · '+age+'yo':'') : '',
-    '🤝 '+lastConnectedLabel(person),
-  ].filter(Boolean).map(t => '<div class="meta-item"><span>'+t+'</span></div>').join('');
+  ].filter(Boolean).map(t => '<div class="meta-item"><span>'+t+'</span></div>').join('')
+  // Split out of the list above so it carries a class of its own: the parent
+  // connection date changes when the badge below is tapped, and paintConnected
+  // rewrites just this line.
+  + '<div class="meta-item"><span class="js-lastconn">🤝 '+lastConnectedLabel(person)+'</span></div>';
 
-  const connBadge = '<span class="badge-status '+(person.connected?'connected':'not-connected')+'">'+
-    (person.connected?'● Family Connected With':'○ Not Connected')+'</span>';
+  // Tappable for anyone who can edit — the Connection Status dropdown beside it
+  // already works that way, so a read-only badge next to it reads as broken.
+  // stopPropagation is required: the whole card opens the detail view on click.
+  const connBadge = canEdit
+    ? '<button class="badge-status '+(person.connected?'connected':'not-connected')+' badge-toggle" '+
+      'onclick="event.stopPropagation();toggleParentConnected(\\''+sk+'\\','+idx+')" '+
+      'title="Tap to change">'+connectedLabel(person,'●')+'</button>'
+    : '<span class="badge-status '+(person.connected?'connected':'not-connected')+'">'+connectedLabel(person,'●')+'</span>';
 
   // The whole card is a click target for the detail view, so the dropdown has
   // to stop propagation or picking a status also navigates away from it.
@@ -667,14 +698,104 @@ async function changeStatus(sk, idx, value, el) {
   }
 }
 
+// Writes column C. Same optimistic contract as changeStatus above: the badge
+// already shows the new value, so on failure it's put back rather than left
+// lying about what the sheet holds.
+//
+// The Apps Script stamps column B (last connection date) only on an OFF -> ON
+// flip and hands the row's date back, so the date is read from its response
+// rather than guessed at here. Flipping back off deliberately leaves that date
+// alone — it records the last time this family was actually connected with, not
+// the state of a checkbox — which is why a mis-tap costs nothing and this
+// doesn't need a confirmation step in front of it.
+async function toggleParentConnected(sk, idx) {
+  const person = (DATA[sk].students||[])[idx];
+  if (!person || !canEdit) return;
+
+  const prevConnected = !!person.connected;
+  const prevLastConnected = person.lastConnected;
+
+  person.connected = !prevConnected;
+  paintConnected(sk, idx, true);
+
+  try {
+    const params = new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{connected:person.connected}})});
+    const res = await fetch('/roster/api/sheet/write', writeInit(params));
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (data.lastConnected!==undefined) person.lastConnected=data.lastConnected;
+    paintConnected(sk, idx, false);
+    showToast('✓ '+person.name+' → '+(person.connected?'Family Connected With':'Not Connected'),'ok');
+  } catch(e) {
+    person.connected = prevConnected;
+    person.lastConnected = prevLastConnected;
+    paintConnected(sk, idx, false);
+    showToast('Could not save — the sheet still says '+(prevConnected?'Family Connected With':'Not Connected'),'error');
+  }
+}
+
+function connectedLabel(person, onGlyph) {
+  return person.connected ? onGlyph+' Family Connected With' : '○ Not Connected';
+}
+
+// Repaints every surface that reads person.connected, without re-rendering
+// either of them: the grid can't be rebuilt mid-tap (with the Connected filter
+// on, the card would vanish from under the finger), and renderStudentDetail
+// re-fetches the hangout log.
+function paintConnected(sk, idx, saving) {
+  const person = (DATA[sk].students||[])[idx];
+  if (!person) return;
+
+  const card = document.querySelector('.card[data-sk="'+sk+'"][data-idx="'+idx+'"]');
+  if (card) {
+    const badge = card.querySelector('.badge-status');
+    if (badge) {
+      badge.className = 'badge-status '+(person.connected?'connected':'not-connected')+(canEdit?' badge-toggle':'')+(saving?' saving':'');
+      badge.textContent = connectedLabel(person,'●');
+    }
+    const lc = card.querySelector('.js-lastconn');
+    if (lc) lc.textContent = '🤝 '+lastConnectedLabel(person);
+  }
+
+  // The detail screen only ever shows one student — repaint it only when that
+  // student is this one.
+  if (currentStudentKey && currentStudentKey.sk===sk && currentStudentKey.index===idx) {
+    const chip = document.getElementById('sd-conn-chip');
+    if (chip) {
+      chip.className = 'chip'+(canEdit?' chip-toggle':'')+(saving?' saving':'');
+      chip.textContent = connectedLabel(person,'✅');
+    }
+    const chipLc = document.getElementById('sd-lastconn-chip');
+    if (chipLc) chipLc.textContent = '🤝 '+lastConnectedLabel(person);
+  }
+}
+
 // ── SEARCH (replaced by applyFilters below) ─────────────────
 
 // ── HS/MS TAB ────────────────────────────────────────────────
 function switchTab(sk, btn) {
+  const panel = document.getElementById('tab-'+sk);
+  if (!panel) return;
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  document.getElementById('tab-'+sk).classList.add('active');
+  panel.classList.add('active');
   document.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
+  // applyDefaultTab() calls this with no click event behind it, so the button
+  // gets looked up when one wasn't handed over.
+  const target = btn || document.querySelector('.seg-btn[onclick*="'+sk+'"]');
+  if (target) target.classList.add('active');
+  try { localStorage.setItem('asm-last-tab', sk); } catch(e) { /* private mode */ }
+}
+
+// Some leaders only ever serve middle school, others only high school — both
+// lists stay available, this just picks which one is showing when they arrive.
+// Account setting first, since it follows them from phone to laptop; then the
+// tab this device was left on; then high school.
+function applyDefaultTab() {
+  let sk = currentUser && currentUser.defaultTab;
+  if (sk!=='hs' && sk!=='ms') {
+    try { sk = localStorage.getItem('asm-last-tab'); } catch(e) { sk = null; }
+  }
+  switchTab(sk==='ms' ? 'ms' : 'hs');
 }
 
 // ── AUTH MODAL ───────────────────────────────────────────────
@@ -807,6 +928,13 @@ function openProfileModal() {
   sv('profile-name-input', currentUser.name||'');
   sv('profile-since-input', currentUser.leaderSince||'');
   sv('profile-funfact-input', currentUser.funFact||'');
+  // The two group buttons carry whatever the tabs are called in settings, the
+  // same way renderAll() relabels the segmented tabs themselves.
+  const hsPref=document.getElementById('tab-pref-btn-hs');
+  const msPref=document.getElementById('tab-pref-btn-ms');
+  if (hsPref) hsPref.textContent=dashTabLabel('hs');
+  if (msPref) msPref.textContent=dashTabLabel('ms');
+  setDefaultTabPref(currentUser.defaultTab||'last');
   const img=document.getElementById('profile-av-img');
   const thumb=driveThumb(currentUser.photoUrl);
   if(thumb){img.src=thumb;img.style.display='';img.classList.remove('loaded');}
@@ -815,16 +943,28 @@ function openProfileModal() {
 }
 function closeProfileModal() { closeModal('profile-modal'); }
 
+// Held until Save Profile rather than written on click — the rest of this
+// modal works that way, and a half-changed profile shouldn't be persisted
+// because someone tapped a button and then cancelled.
+function setDefaultTabPref(sk) {
+  defaultTabPref=sk;
+  ['hs','ms','last'].forEach(k=>{
+    const b=document.getElementById('tab-pref-btn-'+k);
+    if (b) b.classList.toggle('active', k===sk);
+  });
+}
+
 async function saveProfile() {
   if (!currentUser) return;
   const name=v('profile-name-input'), leaderSince=v('profile-since-input'), funFact=v('profile-funfact-input');
+  const defaultTab=defaultTabPref;
   const res=await fetch('/roster/api/profile/update',{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({name,leaderSince,funFact}),
+    body:JSON.stringify({name,leaderSince,funFact,defaultTab}),
   });
   const data=await res.json();
   if (data.success) {
-    Object.assign(currentUser,{name,leaderSince,funFact});
+    Object.assign(currentUser,{name,leaderSince,funFact,defaultTab});
     updateNav(); closeProfileModal(); showToast('✓ Profile updated','ok');
   } else showToast(data.error||'Update failed','error');
 }
@@ -1006,6 +1146,9 @@ async function doConfirmDeleteStudent() {
 // ── STUDENT DETAIL ────────────────────────────────────────────
 async function openStudentDetail(sk, index) {
   currentStudentKey={sk,index};
+  // Per-student UI state — an armed delete or an open editor must not follow
+  // the leader onto the next student's notes.
+  currentNotes=[]; noteEditingId=null; noteConfirmDelete=null;
   showScreen('student');
   await renderStudentDetail(sk,index);
 }
@@ -1025,9 +1168,13 @@ async function renderStudentDetail(sk, index) {
     (tr2.school!==false) && person.school  ? '🏫 '+person.school : '',
     (tr2.birthdays!==false) && person.birthday? '🎂 '+formatDate(person.birthday)+((tr2.age!==false)&&age?' · '+age+'yo':'') : '',
     '🔗 '+STATUS_LABELS[statusOf(person)],
-    person.connected?'✅ Family Connected With':'○ Not Connected',
-    '🤝 '+lastConnectedLabel(person),
-  ].filter(Boolean).map(c=>'<div class="chip">'+c+'</div>').join('');
+  ].filter(Boolean).map(c=>'<div class="chip">'+c+'</div>').join('')
+  // Tappable here too, same as the badge on the card. Both carry ids so
+  // paintConnected can rewrite them without re-rendering this screen.
+  + (canEdit
+      ? '<button class="chip chip-toggle" id="sd-conn-chip" onclick="toggleParentConnected(\\''+sk+'\\','+index+')" title="Tap to change">'+connectedLabel(person,'✅')+'</button>'
+      : '<div class="chip" id="sd-conn-chip">'+connectedLabel(person,'✅')+'</div>')
+  + '<div class="chip" id="sd-lastconn-chip">🤝 '+lastConnectedLabel(person)+'</div>';
 
   const editBtn = canEdit
     ? '<button class="nav-btn primary edit-gated" onclick="openEditModal(\\''+sk+'\\','+index+')">Edit</button>'
@@ -1058,9 +1205,10 @@ async function renderStudentDetail(sk, index) {
         (canEdit?'<div class="add-goal-row"><input class="add-goal-input" id="new-goal-input" placeholder="Add a new goal…"><button class="add-goal-btn" onclick="addGoal()">+</button></div>':'')+
         (person.primaryGoal?'<div style="margin-top:12px;padding:9px 11px;background:var(--accent-glow);border:1px solid var(--accent-border);border-radius:8px;font-size:12px;color:var(--accent)">⭐ Primary: '+person.primaryGoal+'</div>':'')+
       '</div>'+
-      '<div class="panel">'+
-        '<div class="panel-title">📝 Notes</div>'+
-        '<div style="font-size:13px;color:var(--text2);line-height:1.6">'+(person.notes||'<span style="color:var(--muted)">No notes yet.</span>')+'</div>'+
+      '<div class="panel" id="notes-panel">'+
+        '<div class="panel-title">📝 Notes <span id="note-count"></span></div>'+
+        '<div id="notes-list" class="notes-scroll"><div class="loader"><div class="loader-ring"></div></div></div>'+
+        (canEdit?'<div class="add-goal-row"><input class="add-goal-input" id="new-note-input" placeholder="Add a note…" onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addNote();}"><button class="add-goal-btn" onclick="addNote()">+</button></div>':'')+
       '</div>'+
       (tr2.hangoutNotes !== false ?
         '<div class="panel full">'+
@@ -1072,6 +1220,14 @@ async function renderStudentDetail(sk, index) {
   // Load goals
   const goals=person.goals||[];
   renderGoalsList(goals,sk,index);
+
+  // Load notes. null tells renderNotesList the log didn't load, which is not
+  // the same as it being empty — the sheet's own note still shows either way.
+  try {
+    const res=await fetch('/roster/api/student/notes?sk='+sk+'&id='+encodeURIComponent(person.id||''));
+    const d=await res.json();
+    renderNotesList(d.notes||[], sk, index);
+  } catch(e) { renderNotesList(null, sk, index); }
 
   // Load interactions (only if hangout notes tracking is enabled)
   if (tr2.hangoutNotes !== false) {
@@ -1124,6 +1280,188 @@ function renderInteractionsList(interactions, sk, index) {
       actBtns+
     '</div>';
   }).join('');
+}
+
+// ── NOTES ─────────────────────────────────────────────────────
+// Two sources, one panel. The sheet's NOTES cell (column J) is the standing
+// note — allergies, family situation, the things that stay true — and it stays
+// pinned on top; this panel is the only place that cell is visible, so the
+// running log doesn't get to replace it. Below it, the log itself: roster_kv,
+// newest first, one entry per jot, each stamped with who wrote it.
+//
+// Distinct from the hangout log next door on purpose: that one answers "when
+// did someone last meet with this student", this one answers "what do we know
+// about them".
+//
+// Every string below is free text a leader typed, so it goes through dashEsc()
+// before it reaches innerHTML.
+function renderNotesList(notes, sk, index) {
+  const el=document.getElementById('notes-list');
+  if (!el) return;
+  const person=DATA[sk].students[index];
+
+  const sheetNote=(person.notes||'').trim();
+  const pinned = sheetNote
+    ? '<div class="note-pinned">'+
+        '<div class="note-pinned-label">📌 From the sheet</div>'+
+        '<div class="note-pinned-body">'+dashEsc(sheetNote)+'</div>'+
+      '</div>'
+    : '';
+
+  // null means the log failed to load, which is not the same as it being
+  // empty — say so rather than showing a convincing "No notes yet".
+  if (notes===null) {
+    currentNotes=[];
+    el.innerHTML=pinned+'<div class="empty"><p>Could not load notes.</p></div>';
+    return;
+  }
+
+  currentNotes=notes;
+  person.noteCount=notes.length;
+  const nc=document.getElementById('note-count');
+  if (nc) nc.textContent = notes.length ? notes.length+' logged' : '';
+
+  if (!notes.length) {
+    el.innerHTML=pinned+(sheetNote?'':'<div class="empty"><p>No notes yet.</p></div>');
+    return;
+  }
+
+  el.innerHTML=pinned+[...notes].reverse().map(n=>{
+    // canEdit as well as authorship: without it a role that can read the roster
+    // but not write it (pending, viewer) is offered Edit and Delete buttons that
+    // the API then refuses. The server check is the real one either way.
+    const canManage = canEdit && n.id && currentUser && (n.leaderEmail===currentUser.email || currentUser.role==='admin');
+    const editedTag = n.updatedAt ? ' <span class="int-edited">edited</span>' : '';
+    const head =
+      '<div class="int-header">'+
+        '<div class="int-av">'+initials(n.leader||'?')+'</div>'+
+        '<div><div class="int-who">'+dashEsc(n.leader||'Someone')+editedTag+'</div>'+
+        '<div class="int-when">'+(timeAgo(n.createdAt)||formatDate(n.createdAt))+'</div></div>'+
+      '</div>';
+
+    if (noteEditingId===n.id) {
+      return '<div class="int-item note-item">'+head+
+        '<div class="int-body note-body">'+
+          '<textarea class="note-edit-input" id="note-edit-input" rows="3">'+dashEsc(n.text||'')+'</textarea>'+
+        '</div>'+
+        '<div class="int-actions note-actions-open">'+
+          '<button class="int-action-btn" onclick="saveEditNote(\\''+n.id+'\\')">Save</button>'+
+          '<button class="int-action-btn" onclick="cancelEditNote()">Cancel</button>'+
+        '</div>'+
+      '</div>';
+    }
+
+    const actBtns = canManage
+      ? '<div class="int-actions">'+
+          '<button class="int-action-btn" onclick="startEditNote(\\''+n.id+'\\')">Edit</button>'+
+          '<button class="int-action-btn danger" onclick="deleteNote(\\''+n.id+'\\')">'+
+            (noteConfirmDelete===n.id?'Sure?':'Delete')+'</button>'+
+        '</div>'
+      : '';
+
+    return '<div class="int-item note-item">'+head+
+      '<div class="int-body note-body">'+dashEsc(n.text||'')+'</div>'+
+      actBtns+
+    '</div>';
+  }).join('');
+}
+
+function refreshNotesPanel() {
+  if (!currentStudentKey) return;
+  renderNotesList(currentNotes, currentStudentKey.sk, currentStudentKey.index);
+}
+
+async function addNote() {
+  if (!canEdit||!currentStudentKey) return;
+  const input=document.getElementById('new-note-input');
+  const text=(input?input.value:'').trim();
+  if (!text) return;
+
+  const {sk,index}=currentStudentKey;
+  const person=DATA[sk].students[index];
+  // Notes are filed against the sheet's ID column, not the row position. A row
+  // the Apps Script hasn't stamped an ID onto yet has nowhere to file them.
+  if (!person.id) { showToast('This student has no sheet ID yet — reload the roster','error'); return; }
+
+  input.value='';
+  try {
+    const res=await fetch('/roster/api/student/notes',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sk,id:person.id,text}),
+    });
+    const data=await res.json();
+    if (!data.success) throw new Error(data.error||'Could not save the note');
+    currentNotes.push(data.note);
+    renderNotesList(currentNotes,sk,index);
+    showToast('✓ Note added','ok');
+  } catch(e) {
+    // Hand back what they typed rather than swallowing it.
+    if (input) input.value=text;
+    showToast(e.message||'Could not save the note','error');
+  }
+}
+
+function startEditNote(noteId) {
+  noteEditingId=noteId; noteConfirmDelete=null;
+  refreshNotesPanel();
+  const ta=document.getElementById('note-edit-input');
+  if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+}
+
+function cancelEditNote() { noteEditingId=null; refreshNotesPanel(); }
+
+async function saveEditNote(noteId) {
+  if (!currentStudentKey) return;
+  const {sk,index}=currentStudentKey;
+  const person=DATA[sk].students[index];
+  const ta=document.getElementById('note-edit-input');
+  const text=(ta?ta.value:'').trim();
+  if (!text) { showToast("A note can't be empty",'error'); return; }
+
+  try {
+    const res=await fetch('/roster/api/student/notes',{
+      method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sk,id:person.id,noteId,text}),
+    });
+    const data=await res.json();
+    if (!data.success) throw new Error(data.error||'Could not save the note');
+    const i=currentNotes.findIndex(n=>n.id===noteId);
+    if (i>-1) currentNotes[i]=data.note;
+    noteEditingId=null;
+    renderNotesList(currentNotes,sk,index);
+    showToast('✓ Note updated','ok');
+  } catch(e) { showToast(e.message||'Could not save the note','error'); }
+}
+
+// Two taps rather than a modal — a confirmation dialog is heavier than a
+// one-line note is. The armed state disarms itself so a stray "Sure?" doesn't
+// sit there waiting to catch the next tap.
+async function deleteNote(noteId) {
+  if (!currentStudentKey) return;
+  const {sk,index}=currentStudentKey;
+
+  if (noteConfirmDelete!==noteId) {
+    noteConfirmDelete=noteId;
+    refreshNotesPanel();
+    setTimeout(()=>{
+      if (noteConfirmDelete===noteId) { noteConfirmDelete=null; refreshNotesPanel(); }
+    }, 4000);
+    return;
+  }
+  noteConfirmDelete=null;
+
+  const person=DATA[sk].students[index];
+  try {
+    const res=await fetch('/roster/api/student/notes',{
+      method:'DELETE',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sk,id:person.id,noteId}),
+    });
+    const data=await res.json();
+    if (!data.success) throw new Error(data.error||'Could not delete the note');
+    currentNotes=currentNotes.filter(n=>n.id!==noteId);
+    renderNotesList(currentNotes,sk,index);
+    showToast('Note deleted','ok');
+  } catch(e) { showToast(e.message||'Could not delete the note','error'); }
 }
 
 // ── GOALS CRUD ────────────────────────────────────────────────
@@ -1786,7 +2124,7 @@ async function renderDashboard() {
   const ages = all.map(p => calcAge(p.birthday)).filter(a => a);
   const avgAge = ages.length ? (ages.reduce((a, b) => a + b, 0) / ages.length) : null;
   const withPhoto = all.filter(p => p.photoUrl).length;
-  const withNotes = all.filter(p => (p.notes || '').trim()).length;
+  const withNotes = all.filter(p => (p.notes || '').trim() || (p.noteCount || 0) > 0).length;
 
   const goalsTotal = all.reduce((a, p) => a + (p.goals || []).length, 0);
   const goalsDone = all.reduce((a, p) => a + (p.goals || []).filter(g => g.done).length, 0);

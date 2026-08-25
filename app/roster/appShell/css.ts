@@ -519,6 +519,19 @@ header { padding: 44px 0 24px; text-align: center; }
 .status-fringe { background-color: var(--surface3); color: var(--muted); border: 1px solid var(--border); }
 .badge-status.connected    { background: rgba(74,222,128,.08); color: var(--connected); border: 1px solid rgba(74,222,128,.18); }
 .badge-status.not-connected { background: rgba(248,113,113,.07); color: var(--not-connected); border: 1px solid rgba(248,113,113,.16); }
+/* The parent-connected badge is a tap target now (toggleParentConnected), not
+   just a read-out. Rendered as a <button> only for leaders who can edit — a
+   viewer still gets the plain span above, so these rules never reach them.
+   Padding is bumped well past the 3px the read-only badge carries: at 9px type
+   it was nowhere near a thumb-sized target. */
+.badge-status.badge-toggle { padding: 6px 10px; cursor: pointer; transition: filter .2s, transform .1s, opacity .2s; -webkit-tap-highlight-color: transparent; }
+.badge-status.badge-toggle:hover { filter: brightness(1.3); }
+.badge-status.badge-toggle:active { transform: scale(.95); }
+.badge-status.badge-toggle.saving { opacity: .45; pointer-events: none; }
+.chip.chip-toggle { padding: 7px 12px; cursor: pointer; transition: border-color .2s, color .2s, transform .1s, opacity .2s; -webkit-tap-highlight-color: transparent; }
+.chip.chip-toggle:hover { border-color: var(--accent-border); color: var(--text); }
+.chip.chip-toggle:active { transform: scale(.97); }
+.chip.chip-toggle.saving { opacity: .45; pointer-events: none; }
 .card-edit-btn { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; border-radius: 50%; background: transparent; border: 1px solid transparent; color: var(--muted); font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: all .2s; }
 .card:hover .card-edit-btn { opacity: 1; }
 .card-edit-btn:hover { background: var(--accent-glow); border-color: var(--accent-border); color: var(--accent); }
@@ -636,6 +649,28 @@ header { padding: 44px 0 24px; text-align: center; }
 .int-action-btn { font-size: 11px; padding: 3px 9px; border-radius: 20px; border: 1px solid var(--border2); background: transparent; color: var(--muted); cursor: pointer; font-family: 'Inter', sans-serif; transition: all .2s; }
 .int-action-btn:hover { color: var(--text); background: var(--surface2); }
 .int-action-btn.danger:hover { color: var(--not-connected); border-color: rgba(248,113,113,.3); background: rgba(248,113,113,.06); }
+/* Notes list. Deliberately borrows the hangout log's .int-* vocabulary so the
+   two panels read as the same kind of thing — the difference between them is
+   what they're for, not how they look. */
+.notes-scroll { max-height: 340px; overflow-y: auto; margin: 0 -2px; padding: 0 2px; }
+.note-pinned { padding: 10px 11px; margin-bottom: 6px; background: var(--accent-glow); border: 1px solid var(--accent-border); border-radius: 8px; }
+.note-pinned-label { font-size: 9px; font-family: 'JetBrains Mono', monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 5px; }
+.note-pinned-body { font-size: 13px; color: var(--text2); line-height: 1.55; white-space: pre-wrap; }
+/* Notes are typed as prose, not as one line — keep the leader's line breaks. */
+.note-body { white-space: pre-wrap; }
+/* .int-actions reveals itself on :hover, which never fires on a phone, and this
+   panel is mostly used on a phone. */
+@media (hover: none) { .note-item .int-actions { opacity: 1; } }
+/* ...and while a note is open for editing, its Save/Cancel can't be behind a
+   hover either. */
+.int-actions.note-actions-open { opacity: 1; }
+.note-edit-input {
+  width: 100%; background: var(--surface2); border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm); padding: 8px 10px; color: var(--text);
+  font-size: 13px; font-family: 'Inter', sans-serif; line-height: 1.55;
+  outline: none; resize: vertical;
+}
+.note-edit-input:focus { box-shadow: 0 0 0 3px var(--accent-glow); }
 
 /* ── ACTIVITY PAGE ─────────────────────────────────────────── */
 .activity-list { display: flex; flex-direction: column; gap: 14px; max-width: 680px; margin: 28px auto 0; }
@@ -884,6 +919,9 @@ input[type=file] { display: none; }
 }
 .theme-btn:hover { border-color: var(--accent-border); color: var(--text); }
 .theme-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+/* Same control, three longer labels ("Middle School" against a third of the
+   modal), so it gets a size down rather than wrapping. */
+.theme-btn.tab-pref-btn { font-size: 12px; padding: 9px 6px; }
 
 /* ── CROP MODAL ───────────────────────────────────────────── */
 .crop-modal-inner { max-width: 380px; }

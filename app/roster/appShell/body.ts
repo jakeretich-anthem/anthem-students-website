@@ -713,7 +713,9 @@ export const HTML_BODY = `
       </div>
     </div>
     <div class="field"><label>Primary Goal</label><input type="text" id="ef-primary-goal" placeholder="e.g. Get plugged into a community group"></div>
-    <div class="field"><label>Notes</label><input type="text" id="ef-notes" placeholder="Optional notes"></div>
+    <div class="field"><label>Notes</label><textarea id="ef-notes" rows="2" placeholder="Standing notes — allergies, family situation, anything that stays true"></textarea>
+      <div class="field-hint">This is the sheet's NOTES cell, pinned to the top of their Notes panel. Day-to-day notes go in the panel itself.</div>
+    </div>
     <div class="field" id="ef-connected-field">
       <label>Connected This Quarter?</label>
       <div class="connected-toggle" id="ef-connected-toggle" onclick="toggleConnected()">
@@ -758,6 +760,15 @@ export const HTML_BODY = `
         <button id="theme-btn-auto"  class="theme-btn" onclick="applyTheme('auto')">Auto</button>
         <button id="theme-btn-light" class="theme-btn" onclick="applyTheme('light')">Light</button>
       </div>
+    </div>
+    <div class="field">
+      <label>Default Group</label>
+      <div class="theme-toggle-row">
+        <button id="tab-pref-btn-hs"   class="theme-btn tab-pref-btn" onclick="setDefaultTabPref('hs')">High School</button>
+        <button id="tab-pref-btn-ms"   class="theme-btn tab-pref-btn" onclick="setDefaultTabPref('ms')">Middle School</button>
+        <button id="tab-pref-btn-last" class="theme-btn tab-pref-btn" onclick="setDefaultTabPref('last')">Last used</button>
+      </div>
+      <div class="field-hint">Which list opens when you come back. Both are always available — this only picks the starting one.</div>
     </div>
     <div class="modal-actions">
       <button class="btn-save" onclick="saveProfile()">Save Profile</button>
