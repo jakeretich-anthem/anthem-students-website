@@ -496,7 +496,6 @@ header { padding: 44px 0 24px; text-align: center; }
 .badge-grade { font-family: 'JetBrains Mono', monospace; font-size: 9px; background: var(--accent-glow); color: var(--accent); border: 1px solid var(--accent-border); border-radius: 20px; padding: 2px 6px; }
 .card-meta { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
 .meta-item { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; display: flex; gap: 5px; align-items: flex-start; }
-.badge-status { display: inline-block; font-size: 9px; font-family: 'JetBrains Mono', monospace; letter-spacing: .06em; padding: 3px 8px; border-radius: 20px; }
 .card-status-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 /* Connection Status (sheet column D). Reads as a status chip rather than a form
    control until you interact with it — it sits on a card, not in a form. */
@@ -519,18 +518,13 @@ header { padding: 44px 0 24px; text-align: center; }
 .status-core   { background-color: var(--accent-glow); color: var(--accent); border: 1px solid var(--accent-border); }
 .status-loose  { background-color: rgba(96,165,250,.10); color: #60a5fa; border: 1px solid rgba(96,165,250,.24); }
 .status-fringe { background-color: var(--surface3); color: var(--muted); border: 1px solid var(--border); }
-.badge-status.connected    { background: rgba(74,222,128,.08); color: var(--connected); border: 1px solid rgba(74,222,128,.18); }
-.badge-status.not-connected { background: rgba(248,113,113,.07); color: var(--not-connected); border: 1px solid rgba(248,113,113,.16); }
-.badge-status.needs-connection { background: rgba(251,191,36,.1); color: var(--needs-connection); border: 1px solid rgba(251,191,36,.22); }
-/* The parent-connected badge is a tap target now (toggleParentConnected), not
-   just a read-out. Rendered as a <button> only for leaders who can edit — a
-   viewer still gets the plain span above, so these rules never reach them.
-   Padding is bumped well past the 3px the read-only badge carries: at 9px type
-   it was nowhere near a thumb-sized target. */
-.badge-status.badge-toggle { padding: 6px 10px; cursor: pointer; transition: filter .2s, transform .1s, opacity .2s; -webkit-tap-highlight-color: transparent; }
-.badge-status.badge-toggle:hover { filter: brightness(1.3); }
-.badge-status.badge-toggle:active { transform: scale(.95); }
-.badge-status.badge-toggle.saving { opacity: .45; pointer-events: none; }
+/* Parent connection (sheet column C, derived against the reset window) —
+   the same control as Connection Status above, just a second .status-select
+   with its own three colors. A write in flight dims either one the same way. */
+.conn-connected { background-color: rgba(74,222,128,.08); color: var(--connected); border: 1px solid rgba(74,222,128,.18); }
+.conn-stale     { background-color: rgba(251,191,36,.1); color: var(--needs-connection); border: 1px solid rgba(251,191,36,.22); }
+.conn-none      { background-color: rgba(248,113,113,.07); color: var(--not-connected); border: 1px solid rgba(248,113,113,.16); }
+.status-select.saving, .status-chip.saving { opacity: .5; pointer-events: none; }
 .chip.chip-toggle { padding: 7px 12px; cursor: pointer; transition: border-color .2s, color .2s, transform .1s, opacity .2s; -webkit-tap-highlight-color: transparent; }
 .chip.chip-toggle:hover { border-color: var(--accent-border); color: var(--text); }
 .chip.chip-toggle:active { transform: scale(.97); }
@@ -1141,11 +1135,7 @@ input[type=file] { display: none; }
   .card-name { color: #000 !important; }
   .meta-item, .card-meta { color: #333 !important; }
   .badge-grade { background: #eee !important; color: #333 !important; border-color: #ccc !important; }
-  .badge-status { border-color: #999 !important; }
   .status-select, .status-chip { appearance: none !important; background-image: none !important; border-color: #999 !important; color: #000 !important; padding-right: 8px !important; }
-  .badge-status.connected { color: #16a34a !important; background: #f0fdf4 !important; }
-  .badge-status.not-connected { color: #dc2626 !important; background: #fef2f2 !important; }
-  .badge-status.needs-connection { color: #b45309 !important; background: #fffbeb !important; }
   .stat { background: #f9f9f9 !important; border: 1px solid #ddd !important; color: #000 !important; }
   .stat-val { color: #b45309 !important; }
   .stat-label { color: #555 !important; }

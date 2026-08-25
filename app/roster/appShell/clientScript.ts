@@ -508,6 +508,13 @@ const STATUS_ORDER = ['core','loose','fringe'];
 // Adminland re-evaluate everyone the moment it's saved.
 const CONNECTION_DEFAULT_MONTHS = 3;
 
+// Same shape as STATUS_LABELS/STATUS_ORDER above — the connection field is a
+// second .status-select now, so it needs a label set and an option order of
+// its own. Plain text, no glyph: the status dropdown's options don't carry one
+// either, and the select itself already reads as a colored chip.
+const CONN_LABELS = { connected:'Family Connected With', stale:'Needs Connection', none:'Not Connected' };
+const CONN_ORDER = ['connected','stale','none'];
+
 function connectionResetMonths() {
   const n = +(orgSettings?.connections?.resetAfterMonths);
   return n > 0 ? n : CONNECTION_DEFAULT_MONTHS;
@@ -728,15 +735,18 @@ function makeCard(person, idx, sk) {
   // (connected / needs one / never). The date, and the full log behind it,
   // live on the student's own screen.
 
-  // Tappable for anyone who can edit — the Connection Status dropdown beside it
-  // already works that way, so a read-only badge next to it reads as broken.
-  // stopPropagation is required: the whole card opens the detail view on click.
+  // A second .status-select right beside the first one, styled and driven the
+  // same way: pick an option, it writes, a failure puts the old one back. The
+  // stopPropagation calls exist for the same reason the status dropdown's do —
+  // the whole card opens the detail view on click otherwise.
   const connState = connectionState(person);
   const connBadge = canEdit
-    ? '<button class="badge-status '+connBadgeClass(connState)+' badge-toggle" '+
-      'onclick="event.stopPropagation();toggleParentConnected(\\''+sk+'\\','+idx+')" '+
-      'title="'+connBadgeTitle(person)+'">'+connectedLabel(person,'●')+'</button>'
-    : '<span class="badge-status '+connBadgeClass(connState)+'" title="'+connBadgeTitle(person)+'">'+connectedLabel(person,'●')+'</span>';
+    ? '<select class="status-select conn-field conn-'+connState+'" onclick="event.stopPropagation()" '+
+      'onchange="event.stopPropagation();changeConnection(\\''+sk+'\\','+idx+',this.value,this)" '+
+      'title="'+connBadgeTitle(person)+'">'+
+      CONN_ORDER.map(k=>'<option value="'+k+'"'+(k===connState?' selected':'')+'>'+CONN_LABELS[k]+'</option>').join('')+
+      '</select>'
+    : '<span class="status-chip conn-field conn-'+connState+'" title="'+connBadgeTitle(person)+'">'+CONN_LABELS[connState]+'</span>';
 
   // The whole card is a click target for the detail view, so the dropdown has
   // to stop propagation or picking a status also navigates away from it.
@@ -784,15 +794,11 @@ function lastConnectedLabel(person) {
   return 'Parent connection · ' + formatDate(person.lastConnected) + (t ? ' · ' + t : '');
 }
 
-function connBadgeClass(state) {
-  return state === 'connected' ? 'connected' : state === 'stale' ? 'needs-connection' : 'not-connected';
-}
-
 // The card no longer prints the date, so it goes here instead — a long-press
-// on the badge, or a hover on a laptop, still answers "when was it?".
+// on the select, or a hover on a laptop, still answers "when was it?".
 function connBadgeTitle(person) {
   const when = person.lastConnected ? lastConnectedLabel(person) : 'No connection on record';
-  return dashEsc(when + (canEdit ? ' · tap to change' : ''));
+  return dashEsc(when);
 }
 
 // Every sheet write goes through POST. It used to be a GET with the params in
@@ -831,48 +837,38 @@ async function changeStatus(sk, idx, value, el) {
   }
 }
 
-// Writes column C. Same optimistic contract as changeStatus above: the badge
+// Writes column C. Same optimistic contract as changeStatus: the control
 // already shows the new value, so on failure it's put back rather than left
-// lying about what the sheet holds.
+// lying about what the sheet holds. Split into two directions because they do
+// genuinely different things underneath — see each for why.
 //
-// What "the other state" is comes from the badge rather than from column C. A
-// student showing "Needs Connection" still has a tick in column C — the tick
-// just went stale — and a tap on that badge plainly means "I connected with
-// them", not "untick it". Reading the flag instead would have turned the tap
-// into a no-op the leader then had to do twice.
-//
-// Connecting stamps today into column B *explicitly* rather than relying on the
-// Apps Script's OFF -> ON stamp, which wouldn't fire for a stale student whose
-// column C is already ticked, and appends a row to the connection log. Turning
-// it off leaves both the date and the log alone: they record the days this
-// family was actually reached, which unticking a box does not undo.
-async function toggleParentConnected(sk, idx) {
+// Stamps today into column B *explicitly* rather than relying on the Apps
+// Script's OFF -> ON stamp, which wouldn't fire for a stale student whose
+// column C is already ticked, and appends a row to the connection log.
+async function connectFamily(sk, idx) {
   const person = (DATA[sk].students||[])[idx];
   if (!person || !canEdit) return;
 
-  const connecting = connectionState(person) !== 'connected';
   const prevConnected = !!person.connected;
   const prevLastConnected = person.lastConnected;
   const today = todayISO();
 
-  person.connected = connecting;
-  if (connecting) person.lastConnected = today;
-  paintConnected(sk, idx, true);
-
-  const fields = connecting ? {connected:true, lastConnected:today} : {connected:false};
+  person.connected = true;
+  person.lastConnected = today;
+  paintConnected(sk, idx);
 
   try {
-    const params = new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields})});
+    const params = new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{connected:true, lastConnected:today}})});
     const res = await fetch('/roster/api/sheet/write', writeInit(params));
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     if (data.lastConnected) person.lastConnected=data.lastConnected;
-    paintConnected(sk, idx, false);
-    showToast('✓ '+person.name+' → '+(connecting?'Family Connected With':'Not Connected'),'ok');
+    paintConnected(sk, idx);
+    showToast('✓ '+person.name+' → Family Connected With','ok');
   } catch(e) {
     person.connected = prevConnected;
     person.lastConnected = prevLastConnected;
-    paintConnected(sk, idx, false);
+    paintConnected(sk, idx);
     showToast('Could not save — the sheet still says '+(prevConnected?'Family Connected With':'Not Connected'),'error');
     return;
   }
@@ -880,9 +876,9 @@ async function toggleParentConnected(sk, idx) {
   // The log is what the student's screen shows and what the reset window reads
   // once the sheet's single date cell has been overwritten again. It's appended
   // after the sheet write so a failed write doesn't leave a phantom day behind,
-  // and its own failure is reported without undoing the badge — the connection
-  // did happen, only the history of it is short one row.
-  if (connecting && person.id) {
+  // and its own failure is reported without undoing the control — the
+  // connection did happen, only the history of it is short one row.
+  if (person.id) {
     try {
       const res = await fetch('/roster/api/student/connections', {
         method:'POST', headers:{'Content-Type':'application/json'},
@@ -899,6 +895,57 @@ async function toggleParentConnected(sk, idx) {
       showToast("Saved, but couldn't add it to the connection log",'error');
     }
   }
+}
+
+// The date and the log are deliberately left alone here — they record the days
+// this family was actually reached, and unticking column C does not undo that.
+// A no-op when the sheet already says Not Connected: a student can still show
+// "Needs Connection" in that state (it's driven by how old the date is, not by
+// this flag), and picking that option costs nothing to write.
+async function disconnectFamily(sk, idx) {
+  const person = (DATA[sk].students||[])[idx];
+  if (!person || !canEdit) return;
+  if (!person.connected) { paintConnected(sk, idx); return; }
+
+  person.connected = false;
+  paintConnected(sk, idx);
+
+  try {
+    const params = new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{connected:false}})});
+    const res = await fetch('/roster/api/sheet/write', writeInit(params));
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    paintConnected(sk, idx);
+    showToast('✓ '+person.name+' → Not Connected','ok');
+  } catch(e) {
+    person.connected = true;
+    paintConnected(sk, idx);
+    showToast('Could not save — the sheet still says Family Connected With','error');
+  }
+}
+
+// The student screen's own connection chip is still a tap-to-flip control
+// (see renderStudentDetail), so it needs a single entry point that picks a
+// direction from whatever the chip is currently showing.
+async function toggleParentConnected(sk, idx) {
+  const person = (DATA[sk].students||[])[idx];
+  if (!person || !canEdit) return;
+  if (connectionState(person) === 'connected') await disconnectFamily(sk, idx);
+  else await connectFamily(sk, idx);
+}
+
+// The card's .status-select entry point. "Needs Connection" isn't a value the
+// sheet can hold — column C is a two-item dropdown in Google Sheets and
+// nowhere else to put a third state — so picking it writes the same thing
+// picking "Not Connected" does. The repaint after either one shows whatever
+// the date actually earns: if it turns out to still be inside the window, it
+// snaps back to "Not Connected", same as it would for a stray click.
+async function changeConnection(sk, idx, value, el) {
+  const person = (DATA[sk].students||[])[idx];
+  if (!person || !canEdit) return;
+  if (value === connectionState(person)) return;
+  if (value === 'connected') await connectFamily(sk, idx);
+  else await disconnectFamily(sk, idx);
 }
 
 function todayISO() {
@@ -924,14 +971,16 @@ function connectedLabel(person, onGlyph) {
 function paintConnected(sk, idx, saving) {
   const person = (DATA[sk].students||[])[idx];
   if (!person) return;
+  const state = connectionState(person);
 
   const card = document.querySelector('.card[data-sk="'+sk+'"][data-idx="'+idx+'"]');
   if (card) {
-    const badge = card.querySelector('.badge-status');
-    if (badge) {
-      badge.className = 'badge-status '+connBadgeClass(connectionState(person))+(canEdit?' badge-toggle':'')+(saving?' saving':'');
-      badge.textContent = connectedLabel(person,'●');
-      badge.title = connBadgeTitle(person);
+    const field = card.querySelector('.conn-field');
+    if (field) {
+      const base = field.tagName === 'SELECT' ? 'status-select' : 'status-chip';
+      field.className = base+' conn-field conn-'+state+(saving?' saving':'');
+      if (field.tagName === 'SELECT') field.value = state; else field.textContent = CONN_LABELS[state];
+      field.title = connBadgeTitle(person);
     }
   }
 
