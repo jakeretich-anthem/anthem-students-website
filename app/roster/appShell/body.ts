@@ -27,7 +27,7 @@ export const HTML_BODY = `
         <button class="back-btn" onclick="showLanes()">← Back</button>
         <span class="form-title">View Only</span>
       </div>
-      <input id="gate-input" class="gate-input" type="password" placeholder="Enter passcode" autocomplete="off">
+      <input id="gate-input" disabled class="gate-input" type="password" placeholder="Enter passcode" autocomplete="off">
       <button class="gate-btn" id="gate-btn" onclick="checkPasscode()">Enter →</button>
       <div class="gate-error" id="gate-error"></div>
     </div>
@@ -38,9 +38,9 @@ export const HTML_BODY = `
         <button class="back-btn" onclick="showLanes()">← Back</button>
         <span class="form-title">Leader Login</span>
       </div>
-      <input id="gate-leader-email" class="gate-input" type="email" placeholder="Email" autocomplete="email">
+      <input id="gate-leader-email" disabled class="gate-input" type="email" placeholder="Email" autocomplete="email">
       <div class="pw-wrap">
-        <input id="gate-leader-password" class="gate-input" type="password" placeholder="Password" autocomplete="current-password">
+        <input id="gate-leader-password" disabled class="gate-input" type="password" placeholder="Password" autocomplete="current-password">
         <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('gate-leader-password',this)">Show</button>
       </div>
       <button class="gate-btn" id="gate-leader-btn" onclick="doGateLeaderLogin()">Sign In →</button>
@@ -56,7 +56,7 @@ export const HTML_BODY = `
         <span class="form-title">Reset Password</span>
       </div>
       <p class="gate-hint">Enter the email you sign in with and we'll send you a link to set a new password. The link lasts 30 minutes.</p>
-      <input id="gate-forgot-email" class="gate-input" type="email" placeholder="Email" autocomplete="email">
+      <input id="gate-forgot-email" disabled class="gate-input" type="email" placeholder="Email" autocomplete="email">
       <button class="gate-btn" id="gate-forgot-btn" onclick="doForgotPassword()">Send reset link →</button>
       <div class="gate-error" id="gate-forgot-error"></div>
     </div>
@@ -68,10 +68,10 @@ export const HTML_BODY = `
         <span class="form-title">Choose a New Password</span>
       </div>
       <div class="pw-wrap">
-        <input id="gate-reset-password" class="gate-input" type="password" placeholder="New password" autocomplete="new-password">
+        <input id="gate-reset-password" disabled class="gate-input" type="password" placeholder="New password" autocomplete="new-password">
         <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('gate-reset-password',this)">Show</button>
       </div>
-      <input id="gate-reset-confirm" class="gate-input" type="password" placeholder="Confirm new password" autocomplete="new-password">
+      <input id="gate-reset-confirm" disabled class="gate-input" type="password" placeholder="Confirm new password" autocomplete="new-password">
       <button class="gate-btn" id="gate-reset-btn" onclick="doResetPassword()">Set password →</button>
       <div class="gate-error" id="gate-reset-error"></div>
     </div>
@@ -172,7 +172,8 @@ export const HTML_BODY = `
           <select class="filter-select" id="filter-connected" onchange="applyFilters()">
             <option value="">Connected or Not</option>
             <option value="connected">Family Connected With</option>
-            <option value="not-connected">Not Connected</option>
+            <option value="stale">Needs Connection</option>
+            <option value="none">Not Connected</option>
           </select>
           <select class="filter-select" id="filter-sort" onchange="applyFilters()">
             <option value="">Default Order</option>
@@ -487,6 +488,25 @@ export const HTML_BODY = `
             </div>
           </div>
         </div>
+
+        <div class="settings-card">
+          <div class="scard-title">Parent Connections</div>
+          <div class="s-helper" style="margin-bottom:12px">How long a family connection counts for. Once a student's last connection is older than this, their card flips to <strong>Needs Connection</strong> on its own.</div>
+          <div class="scard-row">
+            <div class="field" style="max-width:220px">
+              <label>Connection Lasts (months)</label>
+              <input type="number" id="s-conn-months" min="1" max="36" value="3" oninput="markSettingsDirty()">
+              <div class="s-helper" style="margin-top:6px">Default is 3 months.</div>
+            </div>
+          </div>
+          <div class="s-toggle-row">
+            <div class="s-toggle-info">
+              <div class="s-toggle-title">Update The Sheet Too</div>
+              <div class="s-toggle-desc">When a connection lapses, also set that student's "Connected This Quarter?" back to Not Connected in the Google Sheet. Off means only the app shows it.</div>
+            </div>
+            <div class="s-toggle" id="s-conn-auto-reset" onclick="toggleSettingsSwitch('s-conn-auto-reset')"><div class="s-toggle-knob"></div></div>
+          </div>
+        </div>
       </div>
 
       <!-- ── ACCESS TAB ──────────────────────────────────────── -->
@@ -617,10 +637,10 @@ export const HTML_BODY = `
       <button class="modal-tab" id="tab-signup-btn" onclick="switchAuthTab('signup')">Sign Up</button>
     </div>
     <div id="auth-login-form" class="auth-form">
-      <div class="field"><label>Email</label><input type="email" id="login-email" placeholder="you@example.com" autocomplete="email"></div>
+      <div class="field"><label>Email</label><input type="email" id="login-email" disabled placeholder="you@example.com" autocomplete="email"></div>
       <div class="field"><label>Password</label>
         <div class="pw-wrap">
-          <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+          <input type="password" id="login-password" disabled placeholder="••••••••" autocomplete="current-password">
           <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('login-password',this)">Show</button>
         </div>
       </div>
@@ -629,11 +649,11 @@ export const HTML_BODY = `
       <a class="auth-link" href="#" onclick="event.preventDefault();closeAuthModal();showForgotForm()">Forgot your password?</a>
     </div>
     <div id="auth-signup-form" class="auth-form" style="display:none">
-      <div class="field"><label>Full Name</label><input type="text" id="signup-name" placeholder="First Last" autocomplete="name"></div>
-      <div class="field"><label>Email</label><input type="email" id="signup-email" placeholder="you@example.com" autocomplete="email"></div>
+      <div class="field"><label>Full Name</label><input type="text" id="signup-name" disabled placeholder="First Last" autocomplete="name"></div>
+      <div class="field"><label>Email</label><input type="email" id="signup-email" disabled placeholder="you@example.com" autocomplete="email"></div>
       <div class="field"><label>Password</label>
         <div class="pw-wrap">
-          <input type="password" id="signup-password" placeholder="Create a password" autocomplete="new-password">
+          <input type="password" id="signup-password" disabled placeholder="Create a password" autocomplete="new-password">
           <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('signup-password',this)">Show</button>
         </div>
       </div>
@@ -659,17 +679,17 @@ export const HTML_BODY = `
     <div class="auth-form">
       <div class="field"><label>Current Password</label>
         <div class="pw-wrap">
-          <input type="password" id="pw-old" placeholder="••••••••" autocomplete="current-password">
+          <input type="password" id="pw-old" disabled placeholder="••••••••" autocomplete="current-password">
           <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('pw-old',this)">Show</button>
         </div>
       </div>
       <div class="field"><label>New Password</label>
         <div class="pw-wrap">
-          <input type="password" id="pw-new" placeholder="New password" autocomplete="new-password">
+          <input type="password" id="pw-new" disabled placeholder="New password" autocomplete="new-password">
           <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePassword('pw-new',this)">Show</button>
         </div>
       </div>
-      <div class="field"><label>Confirm New Password</label><input type="password" id="pw-confirm" placeholder="Repeat new password" autocomplete="new-password"></div>
+      <div class="field"><label>Confirm New Password</label><input type="password" id="pw-confirm" disabled placeholder="Repeat new password" autocomplete="new-password"></div>
       <div class="auth-msg" id="pw-msg"></div>
       <button class="auth-submit" id="pw-submit" onclick="doChangePassword()">Update Password</button>
     </div>
@@ -761,20 +781,37 @@ export const HTML_BODY = `
         <button id="theme-btn-light" class="theme-btn" onclick="applyTheme('light')">Light</button>
       </div>
     </div>
-    <div class="field">
-      <label>Default Group</label>
-      <div class="theme-toggle-row">
-        <button id="tab-pref-btn-hs"   class="tab-pref-btn" onclick="setDefaultTabPref('hs')">High School</button>
-        <button id="tab-pref-btn-ms"   class="tab-pref-btn" onclick="setDefaultTabPref('ms')">Middle School</button>
-        <button id="tab-pref-btn-last" class="tab-pref-btn" onclick="setDefaultTabPref('last')">Last used</button>
-      </div>
-      <div class="field-hint">Which list opens when you come back. Both are always available — this only picks the starting one.</div>
-    </div>
     <div class="modal-actions">
       <button class="btn-save" onclick="saveProfile()">Save Profile</button>
+      <button class="btn-secondary" onclick="closeProfileModal();openInstallGuide()">📲 Save As App</button>
       <button class="btn-secondary" onclick="closeProfileModal();openChangePassword(false)">Change Password</button>
       <button class="btn-secondary" onclick="closeProfileModal()">Cancel</button>
       <button class="btn-danger" onclick="logout()">Log Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- SAVE AS APP -->
+<div class="modal-overlay" id="install-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('install-modal')">✕</button>
+    <div class="modal-title">Save As App</div>
+    <div class="modal-sub">Put the roster on your home screen</div>
+    <div id="install-body"></div>
+  </div>
+</div>
+
+<!-- FIRST-RUN TOUR -->
+<div class="modal-overlay" id="tour-modal">
+  <div class="modal tour-modal">
+    <button class="modal-close" onclick="endTour()" aria-label="Skip">✕</button>
+    <div class="tour-icon" id="tour-icon">👋</div>
+    <div class="modal-title" id="tour-title">Welcome</div>
+    <div class="tour-body" id="tour-body"></div>
+    <div class="tour-dots" id="tour-dots"></div>
+    <div class="modal-actions">
+      <button class="btn-save" id="tour-next" onclick="tourNext()">Next →</button>
+      <button class="btn-secondary" onclick="endTour()">Skip</button>
     </div>
   </div>
 </div>

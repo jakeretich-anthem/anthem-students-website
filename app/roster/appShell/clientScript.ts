@@ -15,7 +15,10 @@ let currentInteractions = [];
 let currentNotes = [];        // the open student's notes, for in-place edit/delete
 let noteConfirmDelete = null; // id of the note whose Delete button is armed
 let noteEditingId = null;     // id of the note currently open for editing
-let defaultTabPref = 'last';  // profile modal's pending Default Group choice
+let currentConnections = [];  // the open student's parent-connection log
+let connEditingId = null;     // id of the connection row open for editing
+let connConfirmDelete = null; // id of the connection row whose Delete is armed
+let connectionResetDone = false; // the stale sweep runs once per roster load
 let toastTimer = null;
 let resetToken = null;        // held in memory only; stripped from the URL on boot
 
@@ -124,6 +127,18 @@ function calcAge(bd) {
   if (now.getMonth() - d.getMonth() < 0 || (now.getMonth()===d.getMonth() && now.getDate()<d.getDate())) age--;
   return age > 0 && age < 30 ? age : null;
 }
+// Whole months between a date and now, floored — the unit the reset window is
+// set in. Calendar months rather than 30-day blocks, so "3 months" from Jan 15
+// means Apr 15 whatever the month lengths in between were.
+function monthsSince(val) {
+  const d = parseDateValue(val);
+  if (!d) return null;
+  const now = new Date();
+  let months = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+  if (now.getDate() < d.getDate()) months--;
+  return Math.max(0, months);
+}
+
 function timeAgo(iso) {
   if (!iso) return '';
   const diff = Date.now() - new Date(iso).getTime();
@@ -194,14 +209,19 @@ async function initGate() {
 // switching between them means hiding all of them first.
 const GATE_FORMS = ['gate-passcode-form','gate-leader-form','gate-forgot-form','gate-reset-form'];
 function hideGateForms() {
-  GATE_FORMS.forEach(id => { const el=document.getElementById(id); if (el) el.style.display='none'; });
+  GATE_FORMS.forEach(id => {
+    const el=document.getElementById(id);
+    if (!el) return;
+    el.style.display='none';
+    setModalInputsEnabled(el, false);
+  });
 }
 function openGateForm(id) {
   const la = document.getElementById('gate-lanes');
   if (la) la.style.display = 'none';
   hideGateForms();
   const el = document.getElementById(id);
-  if (el) el.style.display = 'flex';
+  if (el) { el.style.display = 'flex'; setModalInputsEnabled(el, true); }
   return el;
 }
 function clearGateMsg(id) {
@@ -398,10 +418,15 @@ function showNeedAccess() {
 // ── INIT ─────────────────────────────────────────────────────
 async function initApp() {
   showScreen('app');
+  // Whatever the browser decided to focus while the gate was on screen — an
+  // autofilled login field, most of the time — has no business holding the
+  // keyboard open over the roster.
+  blurActiveInput();
   await refreshCurrentUser();
   await loadOrgSettings();
   await loadRoster();
-  applyDefaultTab();
+  applyLastTab();
+  maybeShowTour();
 }
 
 async function refreshCurrentUser() {
@@ -468,6 +493,38 @@ function updateNav() {
 // on every card, so a student moves between statuses without moving in the DOM.
 const STATUS_LABELS = { core:'Core', loose:'Loosely Connected', fringe:'Fringe' };
 const STATUS_ORDER = ['core','loose','fringe'];
+
+// ── PARENT CONNECTION STATE ──────────────────────────────────
+// Three states, not the sheet's two. A tick in column C used to mean "connected"
+// forever — a family reached once in September still read as connected the
+// following June. So the badge is derived from the date instead:
+//
+//   connected  a connection on record, inside the reset window
+//   stale      a connection on record, but older than the window -> needs one
+//   none       no connection has ever been recorded, or a leader unticked it
+//
+// Deriving it (rather than only trusting column C) is what lets a read-only
+// viewer see the same badge as a leader, and what makes changing the window in
+// Adminland re-evaluate everyone the moment it's saved.
+const CONNECTION_DEFAULT_MONTHS = 3;
+
+function connectionResetMonths() {
+  const n = +(orgSettings?.connections?.resetAfterMonths);
+  return n > 0 ? n : CONNECTION_DEFAULT_MONTHS;
+}
+
+function connectionState(person) {
+  const last = person && person.lastConnected;
+  if (!last) return 'none';
+  const months = monthsSince(last);
+  if (months !== null && months >= connectionResetMonths()) return 'stale';
+  return person.connected ? 'connected' : 'none';
+}
+
+// Everything that counts connections — the filters, the dashboard, Adminland —
+// reads this rather than the raw column C flag, so a stale family is not
+// counted as a connected one.
+function isConnected(person) { return connectionState(person) === 'connected'; }
 function statusOf(p) { return STATUS_LABELS[p.status] ? p.status : 'core'; }
 
 // ── ROSTER ───────────────────────────────────────────────────
@@ -486,13 +543,75 @@ async function loadRoster() {
       error = 'The roster sheet came back in a shape we could not read.';
     } else {
       DATA = data;
-      await Promise.all([loadGoals(), loadInteractionCounts(), loadNoteCounts()]);
+      await Promise.all([loadGoals(), loadInteractionCounts(), loadNoteCounts(), loadConnectionDates()]);
     }
   } catch(e) {
     error = 'Could not reach the server. Check your connection and try again.';
   }
   showRosterError(error);
   renderAll();
+  // After the first paint, not before it: the sweep talks to the sheet once per
+  // stale student and the roster shouldn't sit blank behind it.
+  if (!error) sweepStaleConnections();
+}
+
+// The sheet's column B holds one date; the log behind it holds all of them.
+// Where the two disagree the log wins — a leader who corrected a wrong day did
+// it there, and the sheet cell can only have been written by an older toggle.
+async function loadConnectionDates() {
+  await Promise.all(['hs','ms'].map(async sk => {
+    let map = {};
+    try {
+      const res = await fetch('/roster/api/student/connections?sk='+sk);
+      if (res.ok) map = (await res.json()).latest || {};
+    } catch(e) { /* additive — the sheet's own date still stands */ }
+    (DATA[sk].students||[]).forEach(p => {
+      const entry = map[p.id] || {};
+      p.connectionCount = entry.count || 0;
+      if (entry.latest) p.lastConnected = entry.latest;
+    });
+  }));
+}
+
+// Puts the sheet back in step with what the app is already showing. A student
+// whose last connection has aged past the window reads "Needs Connection" here
+// whatever column C says, so leaving the tick in place only means anyone
+// reading the spreadsheet directly sees something the app disagrees with.
+//
+// Runs once per load, only for a session that can write, and only over students
+// who are actually out of step — normally that's nobody, and on the day a batch
+// of them lapse it's a handful. Sequential on purpose: the Apps Script is a
+// single-threaded endpoint behind one spreadsheet, and firing sixty writes at
+// it at once is how you get half of them dropped.
+async function sweepStaleConnections() {
+  if (connectionResetDone || !canEdit) return;
+  if (orgSettings?.connections?.autoReset === false) return;
+  connectionResetDone = true;
+
+  const stale = [];
+  ['hs','ms'].forEach(sk => (DATA[sk].students||[]).forEach((p,i) => {
+    if (p.connected && connectionState(p) === 'stale') stale.push({sk, idx:i, person:p});
+  }));
+  if (!stale.length) return;
+
+  let reset = 0;
+  for (const {sk, idx, person} of stale) {
+    try {
+      const params = new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{connected:false}})});
+      const res = await fetch('/roster/api/sheet/write', writeInit(params));
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      // Column B is untouched by this write, so the badge stays "Needs
+      // Connection" rather than falling back to "Not Connected".
+      person.connected = false;
+      paintConnected(sk, idx, false);
+      reset++;
+    } catch(e) { /* next load tries again; the badge is already right */ }
+  }
+
+  if (reset) {
+    showToast(reset+' student'+(reset===1?'':'s')+' passed '+connectionResetMonths()+' months — marked as needing a connection');
+  }
 }
 
 // Goals left the sheet when its Goals column was deleted; they live in
@@ -602,20 +721,22 @@ function makeCard(person, idx, sk) {
   const meta = [
     (tr.school!==false) && person.school   ? '🏫 '+person.school : '',
     (tr.birthdays!==false) && person.birthday ? '🎂 '+formatDate(person.birthday)+((tr.age!==false)&&age?' · '+age+'yo':'') : '',
-  ].filter(Boolean).map(t => '<div class="meta-item"><span>'+t+'</span></div>').join('')
-  // Split out of the list above so it carries a class of its own: the parent
-  // connection date changes when the badge below is tapped, and paintConnected
-  // rewrites just this line.
-  + '<div class="meta-item"><span class="js-lastconn">🤝 '+lastConnectedLabel(person)+'</span></div>';
+  ].filter(Boolean).map(t => '<div class="meta-item"><span>'+t+'</span></div>').join('');
+  // The actual date of the last parent connection is deliberately not here.
+  // The card is a scanning surface — sixty of them at once — and the badge
+  // below already says the only thing that needs deciding at a glance
+  // (connected / needs one / never). The date, and the full log behind it,
+  // live on the student's own screen.
 
   // Tappable for anyone who can edit — the Connection Status dropdown beside it
   // already works that way, so a read-only badge next to it reads as broken.
   // stopPropagation is required: the whole card opens the detail view on click.
+  const connState = connectionState(person);
   const connBadge = canEdit
-    ? '<button class="badge-status '+(person.connected?'connected':'not-connected')+' badge-toggle" '+
+    ? '<button class="badge-status '+connBadgeClass(connState)+' badge-toggle" '+
       'onclick="event.stopPropagation();toggleParentConnected(\\''+sk+'\\','+idx+')" '+
-      'title="Tap to change">'+connectedLabel(person,'●')+'</button>'
-    : '<span class="badge-status '+(person.connected?'connected':'not-connected')+'">'+connectedLabel(person,'●')+'</span>';
+      'title="'+connBadgeTitle(person)+'">'+connectedLabel(person,'●')+'</button>'
+    : '<span class="badge-status '+connBadgeClass(connState)+'" title="'+connBadgeTitle(person)+'">'+connectedLabel(person,'●')+'</span>';
 
   // The whole card is a click target for the detail view, so the dropdown has
   // to stop propagation or picking a status also navigates away from it.
@@ -655,11 +776,23 @@ function makeCard(person, idx, sk) {
 }
 
 // Column B of the sheet — the last time this student's parents were connected
-// with. Written by the Apps Script when the Connected toggle is switched on.
+// with. Written by the Apps Script when the Connected toggle is switched on,
+// and kept in step with the connection log, which is the fuller record of it.
 function lastConnectedLabel(person) {
   if (!person.lastConnected) return 'Parent connection · never';
   const t = timeAgo(person.lastConnected);
-  return 'Parent connection · ' + (t || formatDate(person.lastConnected));
+  return 'Parent connection · ' + formatDate(person.lastConnected) + (t ? ' · ' + t : '');
+}
+
+function connBadgeClass(state) {
+  return state === 'connected' ? 'connected' : state === 'stale' ? 'needs-connection' : 'not-connected';
+}
+
+// The card no longer prints the date, so it goes here instead — a long-press
+// on the badge, or a hover on a laptop, still answers "when was it?".
+function connBadgeTitle(person) {
+  const when = person.lastConnected ? lastConnectedLabel(person) : 'No connection on record';
+  return dashEsc(when + (canEdit ? ' · tap to change' : ''));
 }
 
 // Every sheet write goes through POST. It used to be a GET with the params in
@@ -702,40 +835,86 @@ async function changeStatus(sk, idx, value, el) {
 // already shows the new value, so on failure it's put back rather than left
 // lying about what the sheet holds.
 //
-// The Apps Script stamps column B (last connection date) only on an OFF -> ON
-// flip and hands the row's date back, so the date is read from its response
-// rather than guessed at here. Flipping back off deliberately leaves that date
-// alone — it records the last time this family was actually connected with, not
-// the state of a checkbox — which is why a mis-tap costs nothing and this
-// doesn't need a confirmation step in front of it.
+// What "the other state" is comes from the badge rather than from column C. A
+// student showing "Needs Connection" still has a tick in column C — the tick
+// just went stale — and a tap on that badge plainly means "I connected with
+// them", not "untick it". Reading the flag instead would have turned the tap
+// into a no-op the leader then had to do twice.
+//
+// Connecting stamps today into column B *explicitly* rather than relying on the
+// Apps Script's OFF -> ON stamp, which wouldn't fire for a stale student whose
+// column C is already ticked, and appends a row to the connection log. Turning
+// it off leaves both the date and the log alone: they record the days this
+// family was actually reached, which unticking a box does not undo.
 async function toggleParentConnected(sk, idx) {
   const person = (DATA[sk].students||[])[idx];
   if (!person || !canEdit) return;
 
+  const connecting = connectionState(person) !== 'connected';
   const prevConnected = !!person.connected;
   const prevLastConnected = person.lastConnected;
+  const today = todayISO();
 
-  person.connected = !prevConnected;
+  person.connected = connecting;
+  if (connecting) person.lastConnected = today;
   paintConnected(sk, idx, true);
 
+  const fields = connecting ? {connected:true, lastConnected:today} : {connected:false};
+
   try {
-    const params = new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{connected:person.connected}})});
+    const params = new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields})});
     const res = await fetch('/roster/api/sheet/write', writeInit(params));
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    if (data.lastConnected!==undefined) person.lastConnected=data.lastConnected;
+    if (data.lastConnected) person.lastConnected=data.lastConnected;
     paintConnected(sk, idx, false);
-    showToast('✓ '+person.name+' → '+(person.connected?'Family Connected With':'Not Connected'),'ok');
+    showToast('✓ '+person.name+' → '+(connecting?'Family Connected With':'Not Connected'),'ok');
   } catch(e) {
     person.connected = prevConnected;
     person.lastConnected = prevLastConnected;
     paintConnected(sk, idx, false);
     showToast('Could not save — the sheet still says '+(prevConnected?'Family Connected With':'Not Connected'),'error');
+    return;
+  }
+
+  // The log is what the student's screen shows and what the reset window reads
+  // once the sheet's single date cell has been overwritten again. It's appended
+  // after the sheet write so a failed write doesn't leave a phantom day behind,
+  // and its own failure is reported without undoing the badge — the connection
+  // did happen, only the history of it is short one row.
+  if (connecting && person.id) {
+    try {
+      const res = await fetch('/roster/api/student/connections', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({sk, id:person.id, date:today}),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error||'Could not log it');
+      person.connectionCount = (person.connectionCount||0)+1;
+      if (currentStudentKey && currentStudentKey.sk===sk && currentStudentKey.index===idx) {
+        currentConnections.push(data.connection);
+        renderConnectionsList(currentConnections, sk, idx);
+      }
+    } catch(e) {
+      showToast("Saved, but couldn't add it to the connection log",'error');
+    }
   }
 }
 
+function todayISO() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+
 function connectedLabel(person, onGlyph) {
-  return person.connected ? onGlyph+' Family Connected With' : '○ Not Connected';
+  const state = connectionState(person);
+  if (state === 'connected') return onGlyph+' Family Connected With';
+  // Named for what it asks of the leader rather than for what lapsed. A student
+  // who has never been connected with reads the same way on purpose — both are
+  // "this one needs a call", and splitting them only makes the badge noisier.
+  if (state === 'stale') return '⏳ Needs Connection';
+  return '○ Not Connected';
 }
 
 // Repaints every surface that reads person.connected, without re-rendering
@@ -750,11 +929,10 @@ function paintConnected(sk, idx, saving) {
   if (card) {
     const badge = card.querySelector('.badge-status');
     if (badge) {
-      badge.className = 'badge-status '+(person.connected?'connected':'not-connected')+(canEdit?' badge-toggle':'')+(saving?' saving':'');
+      badge.className = 'badge-status '+connBadgeClass(connectionState(person))+(canEdit?' badge-toggle':'')+(saving?' saving':'');
       badge.textContent = connectedLabel(person,'●');
+      badge.title = connBadgeTitle(person);
     }
-    const lc = card.querySelector('.js-lastconn');
-    if (lc) lc.textContent = '🤝 '+lastConnectedLabel(person);
   }
 
   // The detail screen only ever shows one student — repaint it only when that
@@ -762,7 +940,7 @@ function paintConnected(sk, idx, saving) {
   if (currentStudentKey && currentStudentKey.sk===sk && currentStudentKey.index===idx) {
     const chip = document.getElementById('sd-conn-chip');
     if (chip) {
-      chip.className = 'chip'+(canEdit?' chip-toggle':'')+(saving?' saving':'');
+      chip.className = 'chip conn-'+connectionState(person)+(canEdit?' chip-toggle':'')+(saving?' saving':'');
       chip.textContent = connectedLabel(person,'✅');
     }
     const chipLc = document.getElementById('sd-lastconn-chip');
@@ -779,22 +957,20 @@ function switchTab(sk, btn) {
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
   panel.classList.add('active');
   document.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));
-  // applyDefaultTab() calls this with no click event behind it, so the button
+  // applyLastTab() calls this with no click event behind it, so the button
   // gets looked up when one wasn't handed over.
   const target = btn || document.querySelector('.seg-btn[onclick*="'+sk+'"]');
   if (target) target.classList.add('active');
   try { localStorage.setItem('asm-last-tab', sk); } catch(e) { /* private mode */ }
 }
 
-// Some leaders only ever serve middle school, others only high school — both
-// lists stay available, this just picks which one is showing when they arrive.
-// Account setting first, since it follows them from phone to laptop; then the
-// tab this device was left on; then high school.
-function applyDefaultTab() {
-  let sk = currentUser && currentUser.defaultTab;
-  if (sk!=='hs' && sk!=='ms') {
-    try { sk = localStorage.getItem('asm-last-tab'); } catch(e) { sk = null; }
-  }
+// Reopens on whichever tab this device was left on. There is deliberately no
+// setting behind this: an account-level "default group" was one more thing to
+// find, explain and get wrong, and picking up where you left off is what it was
+// being set to anyway.
+function applyLastTab() {
+  let sk = null;
+  try { sk = localStorage.getItem('asm-last-tab'); } catch(e) { /* private mode */ }
   switchTab(sk==='ms' ? 'ms' : 'hs');
 }
 
@@ -928,13 +1104,6 @@ function openProfileModal() {
   sv('profile-name-input', currentUser.name||'');
   sv('profile-since-input', currentUser.leaderSince||'');
   sv('profile-funfact-input', currentUser.funFact||'');
-  // The two group buttons carry whatever the tabs are called in settings, the
-  // same way renderAll() relabels the segmented tabs themselves.
-  const hsPref=document.getElementById('tab-pref-btn-hs');
-  const msPref=document.getElementById('tab-pref-btn-ms');
-  if (hsPref) hsPref.textContent=dashTabLabel('hs');
-  if (msPref) msPref.textContent=dashTabLabel('ms');
-  paintDefaultTabPref(currentUser.defaultTab||'last');
   const img=document.getElementById('profile-av-img');
   const thumb=driveThumb(currentUser.photoUrl);
   if(thumb){img.src=thumb;img.style.display='';img.classList.remove('loaded');}
@@ -942,43 +1111,6 @@ function openProfileModal() {
   openModal('profile-modal');
 }
 function closeProfileModal() { closeModal('profile-modal'); }
-
-// Saves on tap rather than waiting for Save Profile. It was staged behind the
-// Save button at first, which read as broken: the Appearance row directly above
-// applies the moment you touch it, so this one has to as well.
-// Paint only — opening the modal must not write anything or move the roster
-// underneath it.
-function paintDefaultTabPref(sk) {
-  defaultTabPref=sk;
-  ['hs','ms','last'].forEach(k=>{
-    const b=document.getElementById('tab-pref-btn-'+k);
-    if (b) b.classList.toggle('active', k===sk);
-  });
-}
-
-async function setDefaultTabPref(sk) {
-  paintDefaultTabPref(sk);
-  if (currentUser) currentUser.defaultTab=sk;
-
-  // Switch behind the modal so the choice is visibly in effect now, rather
-  // than only proving itself on the next visit. 'last' means "leave it alone".
-  if (sk==='hs'||sk==='ms') switchTab(sk);
-
-  // A passcode session has no account record to write to — switchTab() above
-  // has already recorded it on this device, which is all such a session gets.
-  if (!currentUser || !currentUser.email) return;
-
-  try {
-    const res=await fetch('/roster/api/profile/update',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({defaultTab:sk}),
-    });
-    const data=await res.json();
-    if (!data.success) throw new Error(data.error||'Failed');
-  } catch(e) {
-    showToast('Could not save your default group','error');
-  }
-}
 
 async function saveProfile() {
   if (!currentUser) return;
@@ -1174,6 +1306,7 @@ async function openStudentDetail(sk, index) {
   // Per-student UI state — an armed delete or an open editor must not follow
   // the leader onto the next student's notes.
   currentNotes=[]; noteEditingId=null; noteConfirmDelete=null;
+  currentConnections=[]; connEditingId=null; connConfirmDelete=null;
   showScreen('student');
   await renderStudentDetail(sk,index);
 }
@@ -1197,8 +1330,8 @@ async function renderStudentDetail(sk, index) {
   // Tappable here too, same as the badge on the card. Both carry ids so
   // paintConnected can rewrite them without re-rendering this screen.
   + (canEdit
-      ? '<button class="chip chip-toggle" id="sd-conn-chip" onclick="toggleParentConnected(\\''+sk+'\\','+index+')" title="Tap to change">'+connectedLabel(person,'✅')+'</button>'
-      : '<div class="chip" id="sd-conn-chip">'+connectedLabel(person,'✅')+'</div>')
+      ? '<button class="chip conn-'+connectionState(person)+' chip-toggle" id="sd-conn-chip" onclick="toggleParentConnected(\\''+sk+'\\','+index+')" title="Tap to change">'+connectedLabel(person,'✅')+'</button>'
+      : '<div class="chip conn-'+connectionState(person)+'" id="sd-conn-chip">'+connectedLabel(person,'✅')+'</div>')
   + '<div class="chip" id="sd-lastconn-chip">🤝 '+lastConnectedLabel(person)+'</div>';
 
   const editBtn = canEdit
@@ -1235,6 +1368,27 @@ async function renderStudentDetail(sk, index) {
         '<div id="notes-list" class="notes-scroll"><div class="loader"><div class="loader-ring"></div></div></div>'+
         (canEdit?'<div class="add-goal-row"><input class="add-goal-input" id="new-note-input" placeholder="Add a note…" onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addNote();}"><button class="add-goal-btn" onclick="addNote()">+</button></div>':'')+
       '</div>'+
+      // Collapsed by default, and it's the heading itself that opens it. Most
+      // visits to this screen only need the one line above — when the last
+      // connection was — and a leader who wants the individual days is asking
+      // a deliberate question.
+      '<div class="panel full">'+
+        '<button class="panel-title panel-toggle" id="conn-log-toggle" aria-expanded="false" aria-controls="connections-body" onclick="toggleConnectionLog()">'+
+          '<span class="panel-caret">▸</span>'+
+          '<span>🤝 Parent Connection Log</span>'+
+          '<span id="conn-count">'+connCountLabel(person)+'</span>'+
+        '</button>'+
+        '<div id="connections-body" class="panel-collapse" hidden>'+
+          '<div id="connections-list"><div class="loader"><div class="loader-ring"></div></div></div>'+
+          (canEdit
+            ? '<div class="conn-add-row">'+
+                '<input class="conn-date-input" type="date" id="new-conn-date" max="'+todayISO()+'" aria-label="Connection date">'+
+                '<input class="add-goal-input" id="new-conn-note" placeholder="What was it? (optional)">'+
+                '<button class="add-goal-btn" onclick="addConnection()" title="Add connection">+</button>'+
+              '</div>'
+            : '')+
+        '</div>'+
+      '</div>'+
       (tr2.hangoutNotes !== false ?
         '<div class="panel full">'+
           '<div class="panel-title">🤝 Hangout Log <span id="int-count"></span></div>'+
@@ -1253,6 +1407,15 @@ async function renderStudentDetail(sk, index) {
     const d=await res.json();
     renderNotesList(d.notes||[], sk, index);
   } catch(e) { renderNotesList(null, sk, index); }
+
+  // Load the connection log. Fetched even while the panel is collapsed: it
+  // carries the count shown in the heading, and it's one small request.
+  try {
+    const res=await fetch('/roster/api/student/connections?sk='+sk+'&id='+encodeURIComponent(person.id||''));
+    const d=await res.json();
+    if (d.latest) person.lastConnected=d.latest;
+    renderConnectionsList(d.connections||[], sk, index);
+  } catch(e) { renderConnectionsList(null, sk, index); }
 
   // Load interactions (only if hangout notes tracking is enabled)
   if (tr2.hangoutNotes !== false) {
@@ -1389,6 +1552,220 @@ function renderNotesList(notes, sk, index) {
       actBtns+
     '</div>';
   }).join('');
+}
+
+// ── PARENT CONNECTION LOG ─────────────────────────────────────
+// The history behind column B. The sheet can only remember the most recent
+// connection; this is every one of them, with the day it happened, editable
+// because the day often gets logged later than it happened.
+
+function connCountLabel(person) {
+  const n = person && person.connectionCount || 0;
+  return n ? n + ' logged' : '';
+}
+
+function toggleConnectionLog() {
+  const body = document.getElementById('connections-body');
+  const btn = document.getElementById('conn-log-toggle');
+  if (!body || !btn) return;
+  const opening = body.hidden;
+  body.hidden = !opening;
+  btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+  btn.classList.toggle('open', opening);
+}
+
+function renderConnectionsList(connections, sk, index) {
+  const el = document.getElementById('connections-list');
+  if (!el) return;
+  const person = DATA[sk].students[index];
+
+  // null means the log didn't load, which is not the same as it being empty —
+  // an empty-looking log would read as "nobody has ever called this family".
+  if (connections === null) {
+    currentConnections = [];
+    el.innerHTML = '<div class="empty"><p>Could not load the connection log.</p></div>';
+    return;
+  }
+
+  currentConnections = connections;
+  person.connectionCount = connections.length;
+  const cc = document.getElementById('conn-count');
+  if (cc) cc.textContent = connCountLabel(person);
+
+  if (!connections.length) {
+    // A student can carry a date in column B from before this log existed, so
+    // say where that one date came from rather than claiming there were none.
+    el.innerHTML = person.lastConnected
+      ? '<div class="empty"><p>No days logged yet. The sheet has ' + dashEsc(formatDate(person.lastConnected)) + ' as the last connection.</p></div>'
+      : '<div class="empty"><p>No parent connections logged yet.</p></div>';
+    return;
+  }
+
+  // Newest first — the question this panel answers is almost always "when was
+  // the last one", and that answer should not be at the bottom of a scroll.
+  el.innerHTML = [...connections].reverse().map(c => {
+    if (connEditingId === c.id) {
+      return '<div class="conn-item editing">' +
+        '<div class="conn-edit-fields">' +
+          '<input class="conn-date-input" type="date" id="conn-edit-date" value="' + dashEsc(c.date || '') + '" max="' + todayISO() + '" aria-label="Connection date">' +
+          '<input class="add-goal-input" id="conn-edit-note" placeholder="What was it? (optional)" value="' + dashEsc(c.note || '') + '">' +
+        '</div>' +
+        '<div class="int-actions note-actions-open">' +
+          '<button class="int-action-btn" onclick="saveEditConnection(\\'' + c.id + '\\')">Save</button>' +
+          '<button class="int-action-btn" onclick="cancelEditConnection()">Cancel</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    const ago = timeAgo(c.date);
+    const actBtns = canEdit
+      ? '<div class="int-actions">' +
+          '<button class="int-action-btn" onclick="startEditConnection(\\'' + c.id + '\\')">Edit</button>' +
+          '<button class="int-action-btn danger" onclick="deleteConnection(\\'' + c.id + '\\')">' +
+            (connConfirmDelete === c.id ? 'Sure?' : 'Delete') + '</button>' +
+        '</div>'
+      : '';
+
+    return '<div class="conn-item">' +
+      '<div class="conn-main">' +
+        '<div class="conn-date">' + dashEsc(formatDate(c.date) || c.date || '—') + (ago ? ' <span class="conn-ago">' + ago + '</span>' : '') + '</div>' +
+        (c.note ? '<div class="conn-note">' + dashEsc(c.note) + '</div>' : '') +
+        '<div class="conn-by">' + dashEsc(c.leader || 'Someone') + (c.updatedAt ? ' · edited' : '') + '</div>' +
+      '</div>' +
+      actBtns +
+    '</div>';
+  }).join('');
+}
+
+function refreshConnectionsPanel() {
+  if (!currentStudentKey) return;
+  renderConnectionsList(currentConnections, currentStudentKey.sk, currentStudentKey.index);
+}
+
+// Every write here hands back the log's newest date, and that date is pushed
+// straight into the sheet's column B. Without it, correcting a date in the log
+// would leave the spreadsheet — and the reset window that reads it on the next
+// load — still working off the day that was wrong.
+async function syncLastConnected(sk, index, latest) {
+  const person = DATA[sk].students[index];
+  if (!person) return;
+  const previous = person.lastConnected || '';
+  const next = latest || '';
+  person.lastConnected = next;
+  paintConnected(sk, index, false);
+  refreshConnectionsPanel();
+  if (next === previous) return;
+
+  try {
+    const params = new URLSearchParams({action:'update',payload:JSON.stringify({
+      sheet:sk, id:person.id, rowIndex:person.rowIndex,
+      // An emptied log means no connection is on record any more, so column C
+      // has to come off with the date — otherwise the tick outlives its reason.
+      fields: next ? {lastConnected: next} : {lastConnected:'', connected:false},
+    })});
+    const res = await fetch('/roster/api/sheet/write', writeInit(params));
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (!next) person.connected = false;
+    paintConnected(sk, index, false);
+    refreshConnectionsPanel();
+  } catch(e) {
+    showToast("Saved to the log, but the sheet's date didn't update",'error');
+  }
+}
+
+async function addConnection() {
+  if (!canEdit || !currentStudentKey) return;
+  const dateEl = document.getElementById('new-conn-date');
+  const noteEl = document.getElementById('new-conn-note');
+  // An empty picker means "today" — the overwhelmingly common case is logging a
+  // connection the moment it happened, and making that the one that needs
+  // typing would be backwards.
+  const date = (dateEl && dateEl.value) || todayISO();
+  const note = (noteEl ? noteEl.value : '').trim();
+
+  const {sk, index} = currentStudentKey;
+  const person = DATA[sk].students[index];
+  if (!person.id) { showToast('This student has no sheet ID yet — reload the roster','error'); return; }
+
+  try {
+    const res = await fetch('/roster/api/student/connections', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({sk, id:person.id, date, note}),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error||'Could not log the connection');
+    if (dateEl) dateEl.value = '';
+    if (noteEl) noteEl.value = '';
+    currentConnections.push(data.connection);
+    // A logged connection is a connection, whether or not the box was ticked.
+    person.connected = true;
+    renderConnectionsList(currentConnections, sk, index);
+    await syncLastConnected(sk, index, data.latest);
+    showToast('✓ Connection logged','ok');
+  } catch(e) { showToast(e.message||'Could not log the connection','error'); }
+}
+
+function startEditConnection(connectionId) {
+  connEditingId = connectionId; connConfirmDelete = null;
+  refreshConnectionsPanel();
+}
+
+function cancelEditConnection() { connEditingId = null; refreshConnectionsPanel(); }
+
+async function saveEditConnection(connectionId) {
+  if (!currentStudentKey) return;
+  const {sk, index} = currentStudentKey;
+  const person = DATA[sk].students[index];
+  const dateEl = document.getElementById('conn-edit-date');
+  const noteEl = document.getElementById('conn-edit-note');
+  const date = dateEl ? dateEl.value : '';
+  if (!date) { showToast('Pick a date for this connection','error'); return; }
+
+  try {
+    const res = await fetch('/roster/api/student/connections', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({sk, id:person.id, connectionId, date, note:(noteEl?noteEl.value:'').trim()}),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error||'Could not save the change');
+    const i = currentConnections.findIndex(c => c.id === connectionId);
+    if (i > -1) currentConnections[i] = data.connection;
+    connEditingId = null;
+    renderConnectionsList(currentConnections, sk, index);
+    await syncLastConnected(sk, index, data.latest);
+    showToast('✓ Connection updated','ok');
+  } catch(e) { showToast(e.message||'Could not save the change','error'); }
+}
+
+// Two taps rather than a modal, the same way notes delete — see the note there.
+async function deleteConnection(connectionId) {
+  if (!currentStudentKey) return;
+  const {sk, index} = currentStudentKey;
+
+  if (connConfirmDelete !== connectionId) {
+    connConfirmDelete = connectionId;
+    refreshConnectionsPanel();
+    setTimeout(() => {
+      if (connConfirmDelete === connectionId) { connConfirmDelete = null; refreshConnectionsPanel(); }
+    }, 4000);
+    return;
+  }
+  connConfirmDelete = null;
+
+  const person = DATA[sk].students[index];
+  try {
+    const res = await fetch('/roster/api/student/connections', {
+      method:'DELETE', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({sk, id:person.id, connectionId}),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error||'Could not remove it');
+    currentConnections = currentConnections.filter(c => c.id !== connectionId);
+    renderConnectionsList(currentConnections, sk, index);
+    await syncLastConnected(sk, index, data.latest);
+    showToast('Connection removed');
+  } catch(e) { showToast(e.message||'Could not remove it','error'); }
 }
 
 function refreshNotesPanel() {
@@ -1746,7 +2123,7 @@ function switchAdminTab(name,btn) {
 }
 async function loadAdminOverview() {
   const total=['hs','ms'].reduce((a,sk)=>a+(DATA[sk].students||[]).length,0);
-  const conn=['hs','ms'].reduce((a,sk)=>a+(DATA[sk].students||[]).filter(p=>p.connected).length,0);
+  const conn=['hs','ms'].reduce((a,sk)=>a+(DATA[sk].students||[]).filter(isConnected).length,0);
   let ints=0;
   try{const r=await fetch('/roster/api/activity/stats');const d=await r.json();ints=d.totalInteractions||0;}catch(e){}
   document.getElementById('admin-stats-grid').innerHTML=
@@ -1866,8 +2243,7 @@ function applyFilters() {
       if(gradeF && p.grade!==gradeF) return false;
       if(schoolF && p.school!==schoolF) return false;
       if(statusF && statusOf(p)!==statusF) return false;
-      if(connF==='connected' && !p.connected) return false;
-      if(connF==='not-connected' && p.connected) return false;
+      if(connF && connectionState(p)!==connF) return false;
       return true;
     });
     if(sortF) {
@@ -1945,15 +2321,17 @@ function updateFilterCount() {
 
 // ── CSV EXPORT ───────────────────────────────────────────────
 function exportCSV() {
-  const rows=[['Name','Grade','School','Birthday','Connection Status','Level','Connected','Last Connection','Interaction Count','Primary Goal','Notes']];
+  const rows=[['Name','Grade','School','Birthday','Connection Status','Level','Parent Connection','Last Connection','Connections Logged','Interaction Count','Primary Goal','Notes']];
+  const CONN_CSV = { connected:'Connected', stale:'Needs Connection', none:'Not Connected' };
   for(const sk of ['hs','ms']){
     (DATA[sk].students||[]).forEach(p=>{
       rows.push([
         p.name||'', p.grade||'', p.school||'', p.birthday||'',
         STATUS_LABELS[statusOf(p)],
         sk==='hs'?'High School':'Middle School',
-        p.connected?'Yes':'No',
+        CONN_CSV[connectionState(p)],
         p.lastConnected||'',
+        p.connectionCount||'0',
         p.interactionCount||'0', p.primaryGoal||'', (p.notes||'').replace(/[\\n\\r]+/g,' ')
       ]);
     });
@@ -2130,7 +2508,8 @@ async function renderDashboard() {
 
   const hsCount = all.filter(p => p._sk === 'hs').length;
   const msCount = total - hsCount;
-  const connected = all.filter(p => p.connected).length;
+  const connected = all.filter(isConnected).length;
+  const needsConnection = all.filter(p => connectionState(p) === 'stale').length;
   const statusCounts = { core:0, loose:0, fringe:0 };
   all.forEach(p => { statusCounts[statusOf(p)]++; });
 
@@ -2178,8 +2557,10 @@ async function renderDashboard() {
     ], String(total)));
   html += dashPanel('🤝 Family Connection', dashDonut([
       { label:'Connected', value:connected, color:'#4ade80' },
-      { label:'Not yet', value:total - connected, color:'#f87171' },
-    ], dashPct(connected, total) + '%'));
+      { label:'Needs a connection', value:needsConnection, color:'#fbbf24' },
+      { label:'Not yet', value:total - connected - needsConnection, color:'#f87171' },
+    ], dashPct(connected, total) + '%'), {
+      badge: 'resets after ' + connectionResetMonths() + ' mo' });
   html += dashPanel('🎓 By Grade', dashBars(gradeRanks.map(g => ({ label:'Grade ' + g.label, value:g.value }))));
   html += dashPanel('🏫 By School', dashBars(schoolRanks.slice(0, 8)), {
     badge: schoolRanks.length > 8 ? '+' + (schoolRanks.length - 8) + ' more' : '' });
@@ -2201,7 +2582,7 @@ async function renderDashboard() {
 
   const gradeHealth = gradeRanks.filter(g => g.value >= 3).map(g => {
     const inGrade = all.filter(p => (p.grade || '').toString().trim() === g.label);
-    return { label:'Grade ' + g.label, value: dashPct(inGrade.filter(p => p.connected).length, inGrade.length) };
+    return { label:'Grade ' + g.label, value: dashPct(inGrade.filter(isConnected).length, inGrade.length) };
   }).sort((a, b) => b.value - a.value);
 
   html += '<div class="dash-section-title">Connection Health</div><div class="dash-grid">';
@@ -2316,8 +2697,36 @@ function showToast(msg, type='') {
 }
 
 // ── MODAL HELPERS ─────────────────────────────────────────────
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+// Fields inside a closed modal or a hidden gate form are left disabled, so
+// no browser password manager can find a login form to fill on a page the
+// leader is already signed in to. See the note above .modal-overlay in css.ts
+// for what that was doing on a phone.
+function setModalInputsEnabled(root, enabled) {
+  if (!root) return;
+  root.querySelectorAll('input, textarea, select').forEach(el => { el.disabled = !enabled; });
+}
+
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  setModalInputsEnabled(el, true);
+  el.classList.add('open');
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('open');
+  blurActiveInput();
+  // After the fade, so the fields don't visibly grey out on the way out.
+  setTimeout(() => { if (!el.classList.contains('open')) setModalInputsEnabled(el, false); }, 260);
+}
+
+// A keyboard left open over the roster is the whole symptom, so it's dismissed
+// at every point the app moves off a form rather than only where it was raised.
+function blurActiveInput() {
+  const el = document.activeElement;
+  if (el && typeof el.blur === 'function' && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) el.blur();
+}
 function v(id) { return (document.getElementById(id)||{}).value?.trim()||''; }
 function sv(id,val) { const el=document.getElementById(id); if(el) el.value=val; }
 function setMsg(el,msg,type) { el.textContent=msg; el.className='auth-msg '+(type||''); }
@@ -2569,6 +2978,10 @@ function populateSettingsUI() {
   setSettingsSwitch('s-track-school', tr.school !== false);
   setSettingsSwitch('s-track-age', tr.age !== false);
 
+  // Parent connections
+  sv('s-conn-months', s.connections?.resetAfterMonths || 3);
+  setSettingsSwitch('s-conn-auto-reset', s.connections?.autoReset !== false);
+
   // Defaults
   sv('s-default-status', s.defaults?.newStudentStatus || 'new');
   setSettingsSwitch('s-auto-archive', s.defaults?.autoArchive || false);
@@ -2751,6 +3164,12 @@ async function saveSettings() {
       autoArchive: document.getElementById('s-auto-archive')?.classList.contains('on') || false,
       autoArchiveWeeks: parseInt(v('s-archive-weeks')) || 8,
     },
+    connections: {
+      // Clamped rather than trusted: a 0 here would mark every family as
+      // needing a connection the instant one was logged.
+      resetAfterMonths: Math.min(36, Math.max(1, parseInt(v('s-conn-months')) || 3)),
+      autoReset: document.getElementById('s-conn-auto-reset')?.classList.contains('on') || false,
+    },
     access: {
       mode: document.querySelector('input[name="access-mode"]:checked')?.value || 'leaders-only',
       passcode: v('s-passcode'),
@@ -2784,7 +3203,7 @@ async function saveSettings() {
         ministryName: s.ministryName, campus: s.campus,
         logoUrl: s.logoEnabled ? s.logoUrl : '',
         logoEnabled: s.logoEnabled, gradeTabs: s.gradeTabs,
-        tracking: s.tracking, appearance: s.appearance,
+        tracking: s.tracking, connections: s.connections, appearance: s.appearance,
       };
       localStorage.setItem('asm-org-settings', JSON.stringify(orgSettings));
       applyBranding();
@@ -2803,6 +3222,169 @@ function cancelSettings() {
   updateSettingsSaveBtn();
   showToast('Changes reverted');
 }
+
+// ── SAVE AS APP ───────────────────────────────────────────────
+// Saved to the home screen, the roster loses the browser chrome and opens on
+// one tap, which is how nearly every leader actually uses it — so it's worth
+// telling them it exists instead of leaving it to whoever thinks to look in a
+// share menu.
+//
+// Chrome hands over a real install prompt through beforeinstallprompt; Safari
+// on iOS has no such API and never will, so the steps are spelled out there.
+let deferredInstallPrompt = null;
+
+function isStandalone() {
+  try {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  } catch(e) { return false; }
+}
+
+function platformGuess() {
+  const ua = navigator.userAgent || '';
+  const iOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // Chrome on iOS is still WebKit underneath and installs through its own
+  // share menu, so it needs its own steps rather than Safari's or Android's.
+  if (iOS) return /CriOS/.test(ua) ? 'ios-chrome' : 'ios-safari';
+  if (/Android/.test(ua)) return 'android';
+  return 'desktop';
+}
+
+function installStepsHtml() {
+  if (isStandalone()) {
+    return '<div class="install-done">✓ You are already using the saved app. Nothing to do.</div>';
+  }
+  if (deferredInstallPrompt) {
+    return '<p class="install-intro">One tap and the roster lands on your home screen like any other app.</p>' +
+      '<button class="btn-save install-now-btn" onclick="doInstall()">📲 Add To Home Screen</button>';
+  }
+  const steps = {
+    'ios-safari': [
+      'Tap the <strong>Share</strong> button at the bottom of Safari (the square with an arrow coming out of it).',
+      'Scroll down and tap <strong>Add to Home Screen</strong>.',
+      'Tap <strong>Add</strong> in the top corner. The ASM icon appears on your home screen.',
+    ],
+    'ios-chrome': [
+      'Tap the <strong>Share</strong> button in Chrome (the square with an arrow, next to the address bar).',
+      'Scroll down and tap <strong>Add to Home Screen</strong>.',
+      'Tap <strong>Add</strong>. The ASM icon appears on your home screen.',
+    ],
+    'android': [
+      'Tap the <strong>⋮</strong> menu in the top right of Chrome.',
+      'Tap <strong>Add to Home screen</strong> (or <strong>Install app</strong>).',
+      'Confirm, and the ASM icon appears on your home screen.',
+    ],
+    'desktop': [
+      'Look for the <strong>install icon</strong> at the right-hand end of the address bar.',
+      'Click it, then click <strong>Install</strong>.',
+      'The roster opens in its own window from then on.',
+    ],
+  };
+  const list = steps[platformGuess()] || steps.desktop;
+  return '<p class="install-intro">It takes about ten seconds:</p>' +
+    '<ol class="install-steps">' + list.map(t => '<li>' + t + '</li>').join('') + '</ol>' +
+    '<p class="install-note">You will stay signed in — you will not have to log in again each time.</p>';
+}
+
+function openInstallGuide() {
+  const body = document.getElementById('install-body');
+  if (body) {
+    body.innerHTML = installStepsHtml() +
+      '<button class="install-replay" onclick="replayTour()">Show the quick tour again</button>';
+  }
+  openModal('install-modal');
+}
+
+async function doInstall() {
+  if (!deferredInstallPrompt) return;
+  const prompt = deferredInstallPrompt;
+  // The event is single-use — once prompted it can't be replayed, so it's
+  // dropped whatever the leader chooses.
+  deferredInstallPrompt = null;
+  try {
+    prompt.prompt();
+    const choice = await prompt.userChoice;
+    if (choice && choice.outcome === 'accepted') {
+      closeModal('install-modal');
+      showToast('✓ Added to your home screen','ok');
+      return;
+    }
+  } catch(e) { /* fall through to the written steps */ }
+  const body = document.getElementById('install-body');
+  if (body) body.innerHTML = installStepsHtml();
+}
+
+// ── FIRST-RUN TOUR ────────────────────────────────────────────
+// Four cards, once, the first time a leader signs in on a device. Deliberately
+// short: a leader opening this for the first time is usually standing in a room
+// full of students, not reading documentation.
+const TOUR_SEEN_KEY = 'asm-tour-seen-v1';
+const TOUR_STEPS = [
+  {
+    icon: '👋',
+    title: 'Welcome',
+    body: 'This is the student roster. Everything about a student — their goals, your notes, the hangouts, and when their parents were last connected with — lives on their card.',
+  },
+  {
+    icon: '👀',
+    title: 'The Badges',
+    body: 'Every card carries a badge. <strong>Family Connected With</strong> means their parents have been reached recently. <strong>Needs Connection</strong> means it has been a while and they are due. Use <strong>Filters</strong> to pull up just the ones who are due.',
+  },
+  {
+    icon: '🤝',
+    title: 'Logging A Connection',
+    body: 'Tap the badge the moment you connect with a family — today gets logged automatically. Open the student and you can see every connection, fix a date, or add one you forgot.',
+  },
+  {
+    icon: '📲',
+    title: 'Save It As An App',
+    body: 'Put the roster on your home screen and it opens in one tap, full screen, already signed in.',
+    install: true,
+  },
+];
+let tourStep = 0;
+
+function maybeShowTour() {
+  // Only for a real signed-in leader: a passcode viewer can't log anything the
+  // tour talks about, and a pending account can't either.
+  if (!currentUser || !currentUser.email || !canEdit) return;
+  let seen = null;
+  try { seen = localStorage.getItem(TOUR_SEEN_KEY); } catch(e) { return; }
+  if (seen) return;
+  startTour();
+}
+
+function startTour() {
+  tourStep = 0;
+  renderTourStep();
+  openModal('tour-modal');
+}
+
+function renderTourStep() {
+  const step = TOUR_STEPS[tourStep];
+  if (!step) return;
+  const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  set('tour-icon', step.icon);
+  set('tour-title', step.title);
+  set('tour-body', step.body + (step.install ? '<div class="tour-install">' + installStepsHtml() + '</div>' : ''));
+  set('tour-dots', TOUR_STEPS.map((_, i) => '<span class="tour-dot' + (i === tourStep ? ' active' : '') + '"></span>').join(''));
+  const next = document.getElementById('tour-next');
+  if (next) next.textContent = tourStep === TOUR_STEPS.length - 1 ? "Got it" : 'Next →';
+}
+
+function tourNext() {
+  if (tourStep >= TOUR_STEPS.length - 1) { endTour(); return; }
+  tourStep++;
+  renderTourStep();
+}
+
+// Marked seen however it ends, including a skip — a leader who dismissed it
+// once should not meet it again on every sign-in.
+function endTour() {
+  try { localStorage.setItem(TOUR_SEEN_KEY, '1'); } catch(e) { /* private mode */ }
+  closeModal('tour-modal');
+}
+
+function replayTour() { closeModal('install-modal'); startTour(); }
 
 // ── BOOT ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -2824,9 +3406,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // Swipe back
   initSwipeBack();
 
-  // Wire up modal close-on-backdrop for ALL modals
+  // Wire up modal close-on-backdrop for ALL modals, and make sure every closed
+  // one starts with its fields switched off — the markup already says so for
+  // the credential fields, this covers the rest.
   document.querySelectorAll('.modal-overlay').forEach(el => {
     el.addEventListener('click', e => { if(e.target===el) closeModal(el.id); });
+    if (!el.classList.contains('open')) setModalInputsEnabled(el, false);
+  });
+  hideGateForms();
+
+  // Chrome fires this instead of showing its own install bar; holding onto it
+  // is what turns "Save As App" into one tap rather than three written steps.
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+  });
+  window.addEventListener('appinstalled', () => { deferredInstallPrompt = null; });
+
+  // Returning to a backgrounded home-screen app must never come back with a
+  // keyboard up over the roster.
+  window.addEventListener('pageshow', blurActiveInput);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && !document.querySelector('.modal-overlay.open')) blurActiveInput();
   });
   // Wire up ef-name input preview
   const efName=document.getElementById('ef-name');

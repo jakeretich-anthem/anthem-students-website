@@ -13,10 +13,6 @@ export type RosterUser = {
   photoUrl?: string | null;
   leaderSince?: string | null;
   funFact?: string | null;
-  // Which roster tab the app opens on: "hs", "ms", or "last" (whichever tab
-  // this leader was on last, kept per-device in localStorage). Some leaders
-  // only ever serve one group.
-  defaultTab?: string | null;
   mustChangePassword?: boolean;
   createdAt?: string;
   expiresAt?: number | null;
@@ -142,7 +138,6 @@ export function safeUser(user: RosterUser) {
     photoUrl: user.photoUrl || null,
     leaderSince: user.leaderSince || null,
     funFact: user.funFact || null,
-    defaultTab: user.defaultTab || "last",
     expiresAt: user.expiresAt || null,
     status: user.status || null,
     mustChangePassword: !!user.mustChangePassword,

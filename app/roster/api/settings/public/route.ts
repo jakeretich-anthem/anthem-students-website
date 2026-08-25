@@ -14,6 +14,9 @@ export async function GET() {
     logoEnabled: s.logoEnabled,
     gradeTabs: s.gradeTabs,
     tracking: s.tracking,
+    // Every session needs this, not just admins: a read-only viewer has to see
+    // the same "Needs Connection" badges the leaders do.
+    connections: s.connections,
     appearance: s.appearance,
     permissions: s.permissions,
     accessMode: s.access?.mode || "leaders-only",

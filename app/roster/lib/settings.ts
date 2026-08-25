@@ -25,6 +25,16 @@ export const DEFAULT_ROSTER_SETTINGS = {
     autoArchive: false,
     autoArchiveWeeks: 8,
   },
+  // A family connected with once in September is not still "connected" the
+  // following June, but nothing in the sheet ever said so — column C stayed
+  // ticked until somebody manually unticked it. After `resetAfterMonths` with
+  // no new connection the card flips itself to "Needs Connection", and with
+  // `autoReset` on the sheet's column C is put back to "Not Connected" too, so
+  // the two don't drift apart.
+  connections: {
+    resetAfterMonths: 3,
+    autoReset: true,
+  },
   access: {
     mode: "leaders-only",
     passcode: "",

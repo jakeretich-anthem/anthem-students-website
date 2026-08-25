@@ -16,6 +16,8 @@ export const CSS = `
   --muted: #5a5a78;
   --connected: #4ade80;
   --not-connected: #f87171;
+  /* Amber, not red: a lapsed connection is a job on the list, not a failure. */
+  --needs-connection: #fbbf24;
   --border: rgba(255,255,255,0.06);
   --border2: rgba(255,255,255,0.11);
   --warning: #fbbf24;
@@ -519,6 +521,7 @@ header { padding: 44px 0 24px; text-align: center; }
 .status-fringe { background-color: var(--surface3); color: var(--muted); border: 1px solid var(--border); }
 .badge-status.connected    { background: rgba(74,222,128,.08); color: var(--connected); border: 1px solid rgba(74,222,128,.18); }
 .badge-status.not-connected { background: rgba(248,113,113,.07); color: var(--not-connected); border: 1px solid rgba(248,113,113,.16); }
+.badge-status.needs-connection { background: rgba(251,191,36,.1); color: var(--needs-connection); border: 1px solid rgba(251,191,36,.22); }
 /* The parent-connected badge is a tap target now (toggleParentConnected), not
    just a read-out. Rendered as a <button> only for leaders who can edit — a
    viewer still gets the plain span above, so these rules never reach them.
@@ -532,6 +535,9 @@ header { padding: 44px 0 24px; text-align: center; }
 .chip.chip-toggle:hover { border-color: var(--accent-border); color: var(--text); }
 .chip.chip-toggle:active { transform: scale(.97); }
 .chip.chip-toggle.saving { opacity: .45; pointer-events: none; }
+.chip.conn-connected { color: var(--connected); border-color: rgba(74,222,128,.22); }
+.chip.conn-stale { color: var(--needs-connection); border-color: rgba(251,191,36,.28); }
+.chip.conn-none { color: var(--not-connected); border-color: rgba(248,113,113,.2); }
 .card-edit-btn { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; border-radius: 50%; background: transparent; border: 1px solid transparent; color: var(--muted); font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: all .2s; }
 .card:hover .card-edit-btn { opacity: 1; }
 .card-edit-btn:hover { background: var(--accent-glow); border-color: var(--accent-border); color: var(--accent); }
@@ -615,6 +621,63 @@ header { padding: 44px 0 24px; text-align: center; }
   margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;
 }
 .panel-title span { color: var(--muted); font-size: 10px; }
+
+/* A panel heading that is itself the disclosure control. Everything the plain
+   .panel-title does, plus a caret and a hit area big enough for a thumb. */
+.panel-toggle {
+  width: 100%; margin-bottom: 0; padding: 2px 0; gap: 8px;
+  background: none; border: none; cursor: pointer; text-align: left;
+  font-family: 'JetBrains Mono', monospace; -webkit-tap-highlight-color: transparent;
+}
+.panel-toggle > span:nth-child(2) { flex: 1; }
+.panel-toggle:hover { filter: brightness(1.15); }
+.panel-caret { color: var(--accent); opacity: .7; font-size: 11px; transition: transform .2s var(--ease); display: inline-block; }
+.panel-toggle.open .panel-caret { transform: rotate(90deg); }
+.panel-collapse { margin-top: 16px; animation: fadeIn .2s; }
+.panel-collapse[hidden] { display: none; }
+
+/* ── PARENT CONNECTION LOG ─────────────────────────────────── */
+.conn-item { display: flex; align-items: flex-start; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--border); animation: fadeUp .3s var(--ease); }
+.conn-item:last-child { border-bottom: none; }
+.conn-main { flex: 1; min-width: 0; }
+.conn-date { font-size: 14px; color: var(--text); font-weight: 500; }
+.conn-ago { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-left: 6px; }
+.conn-note { font-size: 13px; color: var(--text2); margin-top: 3px; overflow-wrap: anywhere; }
+.conn-by { font-size: 10px; color: var(--muted); font-family: 'JetBrains Mono', monospace; letter-spacing: .08em; text-transform: uppercase; margin-top: 5px; }
+.conn-item .int-actions { padding-left: 0; margin-top: 0; flex-shrink: 0; }
+.conn-item.editing { display: block; }
+.conn-edit-fields { display: flex; flex-wrap: wrap; gap: 8px; }
+.conn-edit-fields .add-goal-input { min-width: 140px; }
+.conn-add-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.conn-date-input {
+  background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-sm);
+  padding: 9px 12px; color: var(--text); font-size: 13px; outline: none;
+  font-family: 'Inter', sans-serif; transition: border-color .2s, box-shadow .2s;
+}
+.conn-date-input:focus { border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-glow); }
+.conn-add-row .add-goal-input { min-width: 140px; }
+/* .int-actions only reveals on :hover, which no phone ever fires. */
+@media (hover: none) { .conn-item .int-actions { opacity: 1; } }
+
+/* ── SAVE AS APP / TOUR ────────────────────────────────────── */
+.install-intro { font-size: 14px; color: var(--text2); margin-bottom: 14px; }
+.install-steps { margin: 0 0 14px 18px; display: flex; flex-direction: column; gap: 10px; }
+.install-steps li { font-size: 14px; color: var(--text); line-height: 1.5; }
+.install-steps strong { color: var(--accent); }
+.install-note { font-size: 12px; color: var(--muted); }
+.install-done { font-size: 14px; color: var(--connected); padding: 14px 0; }
+.install-now-btn { width: 100%; }
+.install-replay { display: block; margin-top: 16px; font-size: 12px; color: var(--muted); text-align: center; background: none; border: none; cursor: pointer; font-family: 'Inter', sans-serif; text-decoration: underline; width: 100%; }
+.install-replay:hover { color: var(--text2); }
+.tour-modal { text-align: center; }
+.tour-icon { font-size: 44px; line-height: 1; margin-bottom: 10px; }
+.tour-modal .modal-title { margin-bottom: 12px; }
+.tour-body { font-size: 15px; line-height: 1.6; color: var(--text2); text-align: left; }
+.tour-body strong { color: var(--text); }
+.tour-install { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.tour-dots { display: flex; gap: 7px; justify-content: center; margin: 20px 0 4px; }
+.tour-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--surface4); transition: background .2s, transform .2s; }
+.tour-dot.active { background: var(--accent); transform: scale(1.25); }
 
 /* ── GOALS ─────────────────────────────────────────────────── */
 .goal-item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); animation: fadeIn .3s; }
@@ -755,13 +818,29 @@ header { padding: 44px 0 24px; text-align: center; }
 .toast.error { border-color: rgba(248,113,113,.4); }
 
 /* ── MODAL ─────────────────────────────────────────────────── */
+/* visibility, not just opacity: a closed modal used to keep full layout, so
+   the login modal's email and password fields counted as on-screen form fields
+   on every single page load. Chrome's and Safari's password managers found
+   them, offered to fill them, and raised the keyboard over a roster the leader
+   was already signed in to. visibility:hidden takes them out of that entirely,
+   and transitioning it (rather than setting it outright) keeps the fade-out.
+   Belt and braces: the fields are also disabled until the modal opens - see
+   setModalInputsEnabled() in the client script. */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.8);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   z-index: 300; display: flex; align-items: center; justify-content: center;
-  padding: 20px; opacity: 0; pointer-events: none; transition: opacity .24s;
+  padding: 20px; opacity: 0; pointer-events: none; visibility: hidden;
+  /* visibility is stepped, not eased: given a duration it stays hidden for the
+     whole fade-IN, which would swallow the focus openAddModal() puts on the
+     name field. So it flips instantly on open, and is delayed by the fade
+     length on close so the modal is still there to fade out. */
+  transition: opacity .24s, visibility 0s linear .24s;
 }
-.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal-overlay.open {
+  opacity: 1; pointer-events: all; visibility: visible;
+  transition: opacity .24s, visibility 0s;
+}
 .modal {
   background: var(--surface); border: 1px solid var(--border2);
   border-radius: var(--radius-lg); width: 100%; max-width: 440px;
@@ -919,21 +998,6 @@ input[type=file] { display: none; }
 }
 .theme-btn:hover { border-color: var(--accent-border); color: var(--text); }
 .theme-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
-/* Same control, three longer labels ("Middle School" against a third of the
-   modal), so it gets a size down rather than wrapping. */
-/* Looks like .theme-btn but carries a class of its own on purpose: applyTheme()
-   clears .active from every .theme-btn on the page, which wiped this row's
-   selection whenever the theme was changed. Sized down — the labels are longer. */
-.tab-pref-btn {
-  flex: 1; padding: 9px 6px; border-radius: var(--radius-sm);
-  border: 1px solid var(--border2); background: var(--surface2);
-  color: var(--text2); font-size: 12px; cursor: pointer;
-  font-family: 'Inter', sans-serif;
-  transition: all .2s var(--ease);
-}
-.tab-pref-btn:hover { border-color: var(--accent-border); color: var(--text); }
-.tab-pref-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
-
 /* ── CROP MODAL ───────────────────────────────────────────── */
 .crop-modal-inner { max-width: 380px; }
 .crop-canvas-wrap {
@@ -1081,6 +1145,7 @@ input[type=file] { display: none; }
   .status-select, .status-chip { appearance: none !important; background-image: none !important; border-color: #999 !important; color: #000 !important; padding-right: 8px !important; }
   .badge-status.connected { color: #16a34a !important; background: #f0fdf4 !important; }
   .badge-status.not-connected { color: #dc2626 !important; background: #fef2f2 !important; }
+  .badge-status.needs-connection { color: #b45309 !important; background: #fffbeb !important; }
   .stat { background: #f9f9f9 !important; border: 1px solid #ddd !important; color: #000 !important; }
   .stat-val { color: #b45309 !important; }
   .stat-label { color: #555 !important; }
