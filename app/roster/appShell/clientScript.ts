@@ -1178,6 +1178,7 @@ async function saveProfile() {
 function uploadProfilePhoto(input) {
   if (!input.files.length) return;
   const file=input.files[0]; input.value='';
+  if(file.size>15*1024*1024){showToast('Photo is too large (max 15MB) — try a smaller photo','error');return;}
   const reader=new FileReader();
   reader.onload=e=>{
     const img=new Image();
@@ -1195,7 +1196,8 @@ function uploadProfilePhoto(input) {
       };
       openModal('crop-modal');
       drawCrop(); initCropDrag();
-      document.getElementById('crop-zoom').value=1;
+      const zoomEl=document.getElementById('crop-zoom');
+      zoomEl.max=cropZoomBounds().max; zoomEl.value=1;
     };
     img.src=e.target.result;
   };
@@ -1254,6 +1256,7 @@ function updateEditPhotoPreview() {
 function uploadStudentPhoto(input) {
   if (!input.files.length) return;
   const file=input.files[0]; input.value='';
+  if(file.size>15*1024*1024){showToast('Photo is too large (max 15MB) — try a smaller photo','error');return;}
   const reader=new FileReader();
   reader.onload=e=>{
     const img=new Image();
@@ -1266,7 +1269,8 @@ function uploadStudentPhoto(input) {
       };
       openModal('crop-modal');
       drawCrop(); initCropDrag();
-      document.getElementById('crop-zoom').value=1;
+      const zoomEl=document.getElementById('crop-zoom');
+      zoomEl.max=cropZoomBounds().max; zoomEl.value=1;
     };
     img.src=e.target.result;
   };
@@ -2782,7 +2786,7 @@ function setMsg(el,msg,type) { el.textContent=msg; el.className='auth-msg '+(typ
 
 // ── PHOTO CROP / COMPRESS ─────────────────────────────────────
 let cropImg=null, cropZoom=1, cropOffX=0, cropOffY=0, cropIsDragging=false, cropDragStartX=0, cropDragStartY=0;
-let cropCallback=null, cropPhotoContext=null;
+let cropCallback=null, cropPhotoContext=null, cropPreviewSize=300, cropPreviewDpr=1;
 
 function triggerPhotoUpload(ctx, callback) {
   cropPhotoContext=ctx;
@@ -2794,6 +2798,7 @@ function triggerPhotoUpload(ctx, callback) {
 function onSharedPhotoSelected(input) {
   const file=input.files[0];
   if(!file) return;
+  if(file.size>15*1024*1024){showToast('Photo is too large (max 15MB) — try a smaller photo','error');input.value='';return;}
   const reader=new FileReader();
   reader.onload=e=>{
     const img=new Image();
@@ -2802,40 +2807,140 @@ function onSharedPhotoSelected(input) {
       openModal('crop-modal');
       drawCrop();
       initCropDrag();
-      document.getElementById('crop-zoom').value=1;
+      const zoomEl=document.getElementById('crop-zoom');
+      zoomEl.max=cropZoomBounds().max; zoomEl.value=1;
     };
     img.src=e.target.result;
   };
   reader.readAsDataURL(file);
 }
 
+// Renders cropImg into the on-screen preview canvas, sizing the canvas's
+// backing store from its displayed CSS size × devicePixelRatio (capped at 2x)
+// so the preview stays crisp on retina screens at any responsive width.
+// cropPreviewSize/cropPreviewDpr are recorded here so getCropSourceRect() can
+// map the preview's pan/zoom state back onto cropImg's native pixels exactly.
 function drawCrop() {
   const canvas=document.getElementById('crop-canvas');
   if(!canvas||!cropImg) return;
-  const SIZE=300;
-  canvas.width=SIZE; canvas.height=SIZE;
+  const wrap=canvas.parentElement;
+  const cssSize=(wrap&&wrap.clientWidth)||300;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const SIZE=Math.round(cssSize*dpr);
+  if(canvas.width!==SIZE||canvas.height!==SIZE){canvas.width=SIZE;canvas.height=SIZE;}
+  cropPreviewSize=SIZE; cropPreviewDpr=dpr;
   const ctx=canvas.getContext('2d');
   ctx.clearRect(0,0,SIZE,SIZE);
   const base=Math.min(cropImg.width,cropImg.height);
   const scale=(SIZE/base)*cropZoom;
   const w=cropImg.width*scale, h=cropImg.height*scale;
-  ctx.drawImage(cropImg, (SIZE-w)/2+cropOffX, (SIZE-h)/2+cropOffY, w, h);
+  ctx.drawImage(cropImg, (SIZE-w)/2+cropOffX*dpr, (SIZE-h)/2+cropOffY*dpr, w, h);
+}
+
+// Maps the preview's current pan/zoom onto cropImg's own pixel space, so
+// saveCrop() can re-render the crop from the original full-resolution photo
+// instead of upscaling the (comparatively tiny) on-screen preview canvas.
+function getCropSourceRect() {
+  const dpr=cropPreviewDpr||1;
+  const base=Math.min(cropImg.width,cropImg.height);
+  const scale=(cropPreviewSize/base)*cropZoom;
+  const cropSize=cropPreviewSize/scale;
+  const cx=cropImg.width/2 - (cropOffX*dpr)/scale;
+  const cy=cropImg.height/2 - (cropOffY*dpr)/scale;
+  return {sx:cx-cropSize/2, sy:cy-cropSize/2, ssize:cropSize};
+}
+
+// Caps zoom relative to the source image's own resolution so a small source
+// (e.g. a re-uploaded 100x100 avatar) can't be zoomed into visible blockiness.
+function cropZoomBounds() {
+  if(!cropImg) return {min:1,max:3};
+  const base=Math.min(cropImg.width,cropImg.height);
+  const maxByRes=Math.max(1.2,(base*4)/(cropPreviewSize||300));
+  return {min:1,max:Math.min(3,maxByRes)};
+}
+
+function setCropZoom(z) {
+  const {min,max}=cropZoomBounds();
+  cropZoom=Math.min(max,Math.max(min,z));
+  const zoomEl=document.getElementById('crop-zoom');
+  if(zoomEl) zoomEl.value=cropZoom;
+  drawCrop();
+}
+
+function resetCropView() {
+  cropZoom=1; cropOffX=0; cropOffY=0;
+  const zoomEl=document.getElementById('crop-zoom');
+  if(zoomEl) zoomEl.value=1;
+  drawCrop();
 }
 
 function initCropDrag() {
   const wrap=document.querySelector('.crop-canvas-wrap');
   if(!wrap||wrap._cropDragInit) return;
   wrap._cropDragInit=true;
+
+  // Mouse pan (desktop).
   wrap.addEventListener('mousedown',e=>{cropIsDragging=true;cropDragStartX=e.clientX-cropOffX;cropDragStartY=e.clientY-cropOffY;});
   window.addEventListener('mousemove',e=>{if(!cropIsDragging)return;cropOffX=e.clientX-cropDragStartX;cropOffY=e.clientY-cropDragStartY;drawCrop();});
   window.addEventListener('mouseup',()=>{cropIsDragging=false;});
-  wrap.addEventListener('touchstart',e=>{const t=e.touches[0];cropIsDragging=true;cropDragStartX=t.clientX-cropOffX;cropDragStartY=t.clientY-cropOffY;},{passive:true});
-  wrap.addEventListener('touchmove',e=>{if(!cropIsDragging)return;const t=e.touches[0];cropOffX=t.clientX-cropDragStartX;cropOffY=t.clientY-cropDragStartY;drawCrop();},{passive:true});
-  wrap.addEventListener('touchend',()=>{cropIsDragging=false;},{passive:true});
+
+  // Wheel-to-zoom (desktop) — prevents page scroll under the modal.
+  wrap.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const delta=-e.deltaY*0.0015;
+    setCropZoom(cropZoom+delta*cropZoom);
+  },{passive:false});
+
+  // Double-click / double-tap resets pan+zoom.
+  wrap.addEventListener('dblclick',()=>resetCropView());
+  let lastTapTime=0;
+  wrap.addEventListener('touchend',e=>{
+    const now=Date.now();
+    if(now-lastTapTime<300 && e.touches.length===0) resetCropView();
+    lastTapTime=now;
+  },{passive:true});
+
+  // Touch: single-finger pan, two-finger pinch-to-zoom.
+  let pinchStartDist=0, pinchStartZoom=1;
+  const touchDist=(t0,t1)=>Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+
+  wrap.addEventListener('touchstart',e=>{
+    if(e.touches.length===2){
+      cropIsDragging=false;
+      pinchStartDist=touchDist(e.touches[0],e.touches[1]);
+      pinchStartZoom=cropZoom;
+    } else if(e.touches.length===1){
+      const t=e.touches[0];
+      cropIsDragging=true;cropDragStartX=t.clientX-cropOffX;cropDragStartY=t.clientY-cropOffY;
+    }
+  },{passive:true});
+
+  wrap.addEventListener('touchmove',e=>{
+    if(e.touches.length===2){
+      const dist=touchDist(e.touches[0],e.touches[1]);
+      if(pinchStartDist>0) setCropZoom(pinchStartZoom*(dist/pinchStartDist));
+    } else if(e.touches.length===1 && cropIsDragging){
+      const t=e.touches[0];
+      cropOffX=t.clientX-cropDragStartX;cropOffY=t.clientY-cropDragStartY;
+      drawCrop();
+    }
+  },{passive:true});
+
+  wrap.addEventListener('touchend',e=>{
+    if(e.touches.length<2) pinchStartDist=0;
+    if(e.touches.length===0) cropIsDragging=false;
+  },{passive:true});
 }
 
+// Re-fit the preview canvas if the modal is open when the viewport changes
+// (phone rotation, window resize) — drawCrop() re-reads the wrapper's CSS size.
+window.addEventListener('resize',()=>{
+  const modal=document.getElementById('crop-modal');
+  if(cropImg && modal && modal.classList.contains('open')) drawCrop();
+});
+
 function onCropZoom(val) {
-  cropZoom=+val; drawCrop();
+  setCropZoom(+val);
 }
 
 function closeCropModal() {
@@ -2843,23 +2948,35 @@ function closeCropModal() {
   cropCallback=null; cropPhotoContext=null; cropImg=null;
 }
 
+// Re-renders the crop from cropImg's native pixels (not the on-screen preview
+// canvas) so output resolution isn't capped by the preview's small backing
+// store — see getCropSourceRect().
 function saveCrop() {
   if(!cropImg) return;
-  const src=document.getElementById('crop-canvas');
+  const {sx,sy,ssize}=getCropSourceRect();
+  const OUT=Math.min(1200,Math.max(cropImg.width,cropImg.height));
   const out=document.createElement('canvas');
-  const SIZE=800; out.width=SIZE; out.height=SIZE;
-  out.getContext('2d').drawImage(src,0,0,SIZE,SIZE);
+  out.width=OUT; out.height=OUT;
+  const octx=out.getContext('2d');
+  octx.imageSmoothingQuality='high';
+  octx.drawImage(cropImg, sx, sy, ssize, ssize, 0, 0, OUT, OUT);
   out.toBlob(blob=>{
     closeModal('crop-modal');
     if(cropCallback) cropCallback(blob);
-  },'image/jpeg',0.85);
+  },'image/jpeg',0.9);
 }
 
 async function uploadCroppedBlob(blob, type) {
   showToast('Uploading…');
-  const fd=new FormData(); fd.append('file',blob,'photo.jpg'); fd.append('type',type);
-  const res=await fetch('/roster/api/upload-photo',{method:'POST',body:fd});
-  return res.json();
+  try {
+    const fd=new FormData(); fd.append('file',blob,'photo.jpg'); fd.append('type',type);
+    const res=await fetch('/roster/api/upload-photo',{method:'POST',body:fd});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok||!data.url) return {error:data.error||('Upload failed ('+res.status+')')};
+    return data;
+  } catch(e) {
+    return {error:'Upload failed — check your connection and try again'};
+  }
 }
 
 // ── ORG SETTINGS (public branding) ────────────────────────────

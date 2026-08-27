@@ -877,7 +877,7 @@ export const HTML_BODY = `
   <div class="modal crop-modal-inner">
     <button class="modal-close" onclick="closeModal('crop-modal')">✕</button>
     <div class="modal-title">Adjust Photo</div>
-    <div class="modal-sub">Drag to reposition · Scroll to zoom</div>
+    <div class="modal-sub">Drag to reposition · Pinch or scroll to zoom</div>
     <div class="crop-canvas-wrap">
       <canvas id="crop-canvas" width="300" height="300"></canvas>
     </div>

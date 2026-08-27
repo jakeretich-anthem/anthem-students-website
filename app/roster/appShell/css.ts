@@ -1000,9 +1000,16 @@ input[type=file] { display: none; }
   border: 2px solid var(--accent-border);
   box-shadow: 0 0 0 8px var(--accent-glow);
   position: relative; cursor: grab;
+  /* Without this, iOS/Android intercept a two-finger drag for native page
+     pinch-zoom or pull-to-refresh before JS ever sees the touchmove. */
+  touch-action: none;
 }
 .crop-canvas-wrap:active { cursor: grabbing; }
-#crop-canvas { display: block; width: 300px; height: 300px; }
+#crop-canvas { display: block; width: 100%; height: 100%; }
+@media (max-width: 480px) {
+  .crop-modal-inner { max-width: 100%; }
+  .crop-canvas-wrap { width: min(240px, calc(100vw - 88px)); height: min(240px, calc(100vw - 88px)); }
+}
 .crop-zoom-wrap {
   display: flex; align-items: center; gap: 12px; margin-bottom: 4px;
 }
