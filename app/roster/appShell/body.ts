@@ -885,7 +885,7 @@ export const HTML_BODY = `
     </div>
     <div class="crop-zoom-wrap">
       <span class="crop-zoom-label">Zoom</span>
-      <input type="range" id="crop-zoom" class="crop-zoom-slider" min="1" max="3" step="0.01" value="1" oninput="onCropZoom(this.value)">
+      <input type="range" id="crop-zoom" class="crop-zoom-slider" min="1" max="8" step="0.01" value="1" oninput="onCropZoom(this.value)">
     </div>
     <div class="crop-replace-row" id="crop-replace-row" style="display:none">
       <button type="button" class="crop-replace-link" onclick="cropPickDifferentPhoto()">Choose a different photo instead</button>

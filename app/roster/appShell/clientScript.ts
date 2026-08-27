@@ -2956,10 +2956,10 @@ function getCropSourceRect() {
 // Caps zoom relative to the source image's own resolution so a small source
 // (e.g. a re-uploaded 100x100 avatar) can't be zoomed into visible blockiness.
 function cropZoomBounds() {
-  if(!cropImg) return {min:1,max:3};
+  if(!cropImg) return {min:1,max:8};
   const base=Math.min(cropImg.width,cropImg.height);
-  const maxByRes=Math.max(1.2,(base*4)/(cropPreviewSize||300));
-  return {min:1,max:Math.min(3,maxByRes)};
+  const maxByRes=Math.max(1.2,(base*8)/(cropPreviewSize||300));
+  return {min:1,max:Math.min(8,maxByRes)};
 }
 
 function setCropZoom(z) {
