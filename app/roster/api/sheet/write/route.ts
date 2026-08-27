@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { requirePermission } from "../../../lib/auth";
 
 // Every action here mutates the sheet, so this is POST-only. It used to be a
@@ -40,6 +41,9 @@ export async function POST(request: Request) {
     if (process.env.GAS_SHARED_SECRET) params.set("_s", process.env.GAS_SHARED_SECRET);
     const res = await fetch(scriptUrl + "?" + params.toString());
     const text = await res.text();
+    // Bust the read cache added in sheet/read/route.ts so the next roster
+    // load — even a fraction of a second later — sees this write.
+    revalidateTag("roster-sheet");
     return new NextResponse(text, { headers: { "Content-Type": "application/json" } });
   } catch {
     return NextResponse.json({ error: "Could not reach Google Sheet" }, { status: 502 });

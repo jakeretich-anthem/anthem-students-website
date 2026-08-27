@@ -23,7 +23,9 @@ export async function GET() {
   let res: Response;
   try {
     const secret = process.env.GAS_SHARED_SECRET ? `&_s=${encodeURIComponent(process.env.GAS_SHARED_SECRET)}` : "";
-    res = await fetch(scriptUrl + "?action=read" + secret);
+    res = await fetch(scriptUrl + "?action=read" + secret, {
+      next: { revalidate: 20, tags: ["roster-sheet"] },
+    });
   } catch (err) {
     console.error("[roster/sheet] fetch to the Apps Script failed:", err);
     return NextResponse.json({ error: "Could not reach the Google Sheet." }, { status: 502 });
