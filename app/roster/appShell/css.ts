@@ -1006,7 +1006,7 @@ input[type=file] { display: none; }
   touch-action: none;
 }
 .crop-canvas-wrap:active { cursor: grabbing; }
-#crop-preview-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+#crop-preview-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block; -webkit-user-drag: none; user-select: none; -webkit-user-select: none; }
 @media (max-width: 480px) {
   .crop-modal-inner { max-width: 100%; }
   .crop-canvas-wrap { width: min(240px, calc(100vw - 88px)); height: min(240px, calc(100vw - 88px)); }

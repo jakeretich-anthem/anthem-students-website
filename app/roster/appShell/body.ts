@@ -881,7 +881,7 @@ export const HTML_BODY = `
     <div class="modal-title">Adjust Photo</div>
     <div class="modal-sub">Drag to reposition · Pinch or scroll to zoom</div>
     <div class="crop-canvas-wrap">
-      <img id="crop-preview-img" alt="">
+      <img id="crop-preview-img" alt="" draggable="false">
     </div>
     <div class="crop-zoom-wrap">
       <span class="crop-zoom-label">Zoom</span>

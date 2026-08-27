@@ -3065,8 +3065,11 @@ function initCropDrag() {
   if(!wrap||wrap._cropDragInit) return;
   wrap._cropDragInit=true;
 
-  // Mouse pan (desktop).
+  // Mouse pan (desktop). preventDefault stops the browser's native "drag this
+  // image out to the desktop" gesture from hijacking the mousedown before our
+  // own drag ever gets a chance to move anything.
   wrap.addEventListener('mousedown',e=>{
+    e.preventDefault();
     const cssSize=wrap.clientWidth||300;
     cropIsDragging=true;cropDragStartX=e.clientX-cropOffX*cssSize;cropDragStartY=e.clientY-cropOffY*cssSize;
   });
