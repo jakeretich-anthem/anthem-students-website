@@ -1157,6 +1157,8 @@ function openProfileModal() {
   const thumb=driveThumb(currentUser.photoUrl);
   if(thumb){img.src=thumb;img.style.display='';img.classList.remove('loaded');}
   else img.style.display='none';
+  const recropBtn=document.getElementById('profile-recrop-btn');
+  if(recropBtn) recropBtn.style.display=currentUser.photoUrl?'':'none';
   openModal('profile-modal');
 }
 function closeProfileModal() { closeModal('profile-modal'); }
@@ -1194,6 +1196,8 @@ function uploadProfilePhoto(input) {
           updateNav(); showToast('✓ Photo updated','ok');
         } else showToast(data.error||'Upload failed','error');
       };
+      cropReplaceInputId=null;
+      setCropReplaceRowVisible(false);
       openModal('crop-modal');
       drawCrop(); initCropDrag();
       const zoomEl=document.getElementById('crop-zoom');
@@ -1251,6 +1255,8 @@ function updateEditPhotoPreview() {
   const thumb=driveThumb(url);
   if(thumb){img.style.display='';img.classList.remove('loaded');img.src=thumb;}
   else img.style.display='none';
+  const recropBtn=document.getElementById('ef-recrop-btn');
+  if(recropBtn) recropBtn.style.display=url?'':'none';
 }
 
 function uploadStudentPhoto(input) {
@@ -1267,6 +1273,8 @@ function uploadStudentPhoto(input) {
         if(data.url){sv('ef-photoUrl',data.url);updateEditPhotoPreview();showToast('✓ Uploaded','ok');}
         else showToast(data.error||'Upload failed','error');
       };
+      cropReplaceInputId=null;
+      setCropReplaceRowVisible(false);
       openModal('crop-modal');
       drawCrop(); initCropDrag();
       const zoomEl=document.getElementById('crop-zoom');
@@ -1394,7 +1402,10 @@ async function renderStudentDetail(sk, index) {
     ? '<button class="nav-btn" onclick="openInteractionModal(\\''+sk+'\\','+index+',\\''+person.name+'\\')">+ Log Hangout</button>'
     : '';
 
-  const sdAvatarClick = canEdit ? ' onclick="triggerStudentDetailPhotoUpload(\\''+sk+'\\','+index+')"' : '';
+  const sdPhotoAction = person.photoUrl
+    ? 'recropStudentPhoto(\\''+sk+'\\','+index+')'
+    : 'triggerStudentDetailPhotoUpload(\\''+sk+'\\','+index+')';
+  const sdAvatarClick = canEdit ? ' onclick="'+sdPhotoAction+'"' : '';
   el.innerHTML =
     '<div class="student-hero">'+
       '<div class="sd-avatar-wrap"'+sdAvatarClick+'>'+
@@ -2787,6 +2798,10 @@ function setMsg(el,msg,type) { el.textContent=msg; el.className='auth-msg '+(typ
 // ── PHOTO CROP / COMPRESS ─────────────────────────────────────
 let cropImg=null, cropZoom=1, cropOffX=0, cropOffY=0, cropIsDragging=false, cropDragStartX=0, cropDragStartY=0;
 let cropCallback=null, cropPhotoContext=null, cropPreviewSize=300, cropPreviewDpr=1;
+// Which <input type=file> "Choose a different photo" should reopen, when the
+// crop modal was opened on an *existing* photo (recrop) rather than a fresh
+// pick. Null hides that link — a fresh pick has nothing to "go back" to.
+let cropReplaceInputId=null;
 
 function triggerPhotoUpload(ctx, callback) {
   cropPhotoContext=ctx;
@@ -2804,6 +2819,8 @@ function onSharedPhotoSelected(input) {
     const img=new Image();
     img.onload=()=>{
       cropImg=img; cropZoom=1; cropOffX=0; cropOffY=0;
+      cropReplaceInputId=null;
+      setCropReplaceRowVisible(false);
       openModal('crop-modal');
       drawCrop();
       initCropDrag();
@@ -2813,6 +2830,92 @@ function onSharedPhotoSelected(input) {
     img.src=e.target.result;
   };
   reader.readAsDataURL(file);
+}
+
+// Re-opens the crop editor on a photo that's already uploaded (Drive or
+// Supabase Storage), so a leader can fix the crop without picking a new
+// file. Loaded through /roster/api/photo-proxy rather than the image's own
+// URL — neither host reliably sends CORS headers, so drawing straight from
+// them would taint the canvas and block saveCrop()'s toBlob() call.
+function loadExistingCropImage(url) {
+  if (!url) return;
+  showToast('Loading photo…');
+  const img=new Image();
+  img.onload=()=>{
+    cropImg=img; cropZoom=1; cropOffX=0; cropOffY=0;
+    setCropReplaceRowVisible(true);
+    openModal('crop-modal');
+    drawCrop();
+    initCropDrag();
+    const zoomEl=document.getElementById('crop-zoom');
+    zoomEl.max=cropZoomBounds().max; zoomEl.value=1;
+  };
+  img.onerror=()=>showToast('Could not load photo for editing','error');
+  img.src='/roster/api/photo-proxy?url='+encodeURIComponent(url);
+}
+
+function setCropReplaceRowVisible(visible) {
+  const row=document.getElementById('crop-replace-row');
+  if(row) row.style.display=visible?'':'none';
+}
+
+// The crop modal's "choose a different photo" escape hatch: keeps whatever
+// cropCallback/type the recrop entry point already set up, just swaps in a
+// freshly picked file instead of the existing photo.
+function cropPickDifferentPhoto() {
+  const inputId=cropReplaceInputId;
+  closeModal('crop-modal');
+  cropImg=null;
+  if (inputId) {
+    const input=document.getElementById(inputId);
+    if (input) { input.value=''; input.click(); }
+  }
+}
+
+function recropProfilePhoto() {
+  if (!currentUser || !currentUser.photoUrl) return;
+  cropReplaceInputId='profile-photo-input';
+  cropCallback=async blob=>{
+    const data=await uploadCroppedBlob(blob,'leader');
+    if(data.url){
+      await fetch('/roster/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photoUrl:data.url})});
+      currentUser.photoUrl=data.url;
+      const thumb=driveThumb(data.url)||data.url;
+      const i=document.getElementById('profile-av-img');
+      if(i){i.src=thumb;i.style.display='';i.onload=()=>i.classList.add('loaded');}
+      updateNav(); showToast('✓ Photo updated','ok');
+    } else showToast(data.error||'Upload failed','error');
+  };
+  loadExistingCropImage(currentUser.photoUrl);
+}
+
+function recropEditFormPhoto() {
+  const url=v('ef-photoUrl');
+  if (!url) return;
+  cropReplaceInputId='photo-upload-input';
+  cropCallback=async blob=>{
+    const data=await uploadCroppedBlob(blob,'student');
+    if(data.url){sv('ef-photoUrl',data.url);updateEditPhotoPreview();showToast('✓ Uploaded','ok');}
+    else showToast(data.error||'Upload failed','error');
+  };
+  loadExistingCropImage(url);
+}
+
+function recropStudentPhoto(sk, index) {
+  if (!canEdit) return;
+  const person=DATA[sk].students[index];
+  if (!person.photoUrl) return;
+  cropReplaceInputId='shared-photo-input';
+  cropCallback=async blob=>{
+    const data=await uploadCroppedBlob(blob,'student');
+    if(!data.url){showToast(data.error||'Upload failed','error');return;}
+    person.photoUrl=data.url;
+    const params=new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{photoUrl:data.url}})});
+    await fetch('/roster/api/sheet/write', writeInit(params));
+    renderStudentDetail(sk,index);
+    showToast('✓ Photo updated','ok');
+  };
+  loadExistingCropImage(person.photoUrl);
 }
 
 // Renders cropImg into the on-screen preview canvas, sizing the canvas's
@@ -2945,7 +3048,7 @@ function onCropZoom(val) {
 
 function closeCropModal() {
   closeModal('crop-modal');
-  cropCallback=null; cropPhotoContext=null; cropImg=null;
+  cropCallback=null; cropPhotoContext=null; cropImg=null; cropReplaceInputId=null;
 }
 
 // Re-renders the crop from cropImg's native pixels (not the on-screen preview

@@ -1027,6 +1027,13 @@ input[type=file] { display: none; }
   width: 16px; height: 16px; border-radius: 50%; border: none;
   background: var(--accent); cursor: pointer;
 }
+.crop-replace-row { text-align: center; margin: 10px 0 4px; }
+.crop-replace-link {
+  background: none; border: none; padding: 4px; font-size: 12px;
+  color: var(--muted); cursor: pointer; text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.crop-replace-link:hover { color: var(--accent); }
 
 /* ── STUDENT DETAIL PHOTO OVERLAY ─────────────────────────── */
 .sd-avatar-wrap { position: relative; display: inline-block; cursor: pointer; }

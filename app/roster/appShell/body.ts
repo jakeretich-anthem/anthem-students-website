@@ -714,6 +714,7 @@ export const HTML_BODY = `
         </div>
         <label class="upload-label" for="photo-upload-input">📸 Upload Photo</label>
         <input type="file" id="photo-upload-input" accept="image/*" onchange="uploadStudentPhoto(this)">
+        <button type="button" class="upload-label" id="ef-recrop-btn" style="display:none" onclick="recropEditFormPhoto()">✂️ Recrop</button>
       </div>
     </div>
     <div class="field"><label>Full Name *</label><input type="text" id="ef-name" placeholder="First Last"></div>
@@ -768,6 +769,7 @@ export const HTML_BODY = `
         <div style="font-size:12px;color:var(--muted)" id="profile-display-email"></div>
         <label class="upload-label" for="profile-photo-input" style="margin-top:8px">📸 Change Photo</label>
         <input type="file" id="profile-photo-input" accept="image/*" onchange="uploadProfilePhoto(this)">
+        <button type="button" class="upload-label" id="profile-recrop-btn" style="display:none;margin-top:8px" onclick="recropProfilePhoto()">✂️ Recrop</button>
       </div>
     </div>
     <div class="field"><label>Display Name</label><input type="text" id="profile-name-input" placeholder="Your full name"></div>
@@ -884,6 +886,9 @@ export const HTML_BODY = `
     <div class="crop-zoom-wrap">
       <span class="crop-zoom-label">Zoom</span>
       <input type="range" id="crop-zoom" class="crop-zoom-slider" min="1" max="3" step="0.01" value="1" oninput="onCropZoom(this.value)">
+    </div>
+    <div class="crop-replace-row" id="crop-replace-row" style="display:none">
+      <button type="button" class="crop-replace-link" onclick="cropPickDifferentPhoto()">Choose a different photo instead</button>
     </div>
     <div class="modal-actions">
       <button class="btn-save" onclick="saveCrop()">Use Photo</button>
