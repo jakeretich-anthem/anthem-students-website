@@ -705,7 +705,7 @@ export const HTML_BODY = `
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
       <div class="photo-preview" id="edit-photo-preview">
         <div class="av-fallback" id="edit-pv-fallback" style="background:var(--accent)">?</div>
-        <img id="edit-pv-img" src="" alt="" onload="this.classList.add('loaded')" onerror="this.style.display='none'">
+        <img id="edit-pv-img" src="" alt="" onload="this.classList.add('loaded');applyCropFromDataset(this)" onerror="this.style.display='none'">
       </div>
       <div style="flex:1">
         <div class="field" style="margin-bottom:8px">
@@ -762,7 +762,7 @@ export const HTML_BODY = `
     <div class="profile-av-wrap">
       <div class="profile-av" id="profile-av-lg">
         <span id="profile-av-initials">?</span>
-        <img id="profile-av-img" src="" alt="" onload="this.classList.add('loaded')" onerror="this.style.display='none'">
+        <img id="profile-av-img" src="" alt="" onload="this.classList.add('loaded');applyCropFromDataset(this)" onerror="this.style.display='none'">
       </div>
       <div>
         <div style="font-size:16px;font-weight:600" id="profile-display-name">Loading…</div>
@@ -881,7 +881,7 @@ export const HTML_BODY = `
     <div class="modal-title">Adjust Photo</div>
     <div class="modal-sub">Drag to reposition · Pinch or scroll to zoom</div>
     <div class="crop-canvas-wrap">
-      <canvas id="crop-canvas" width="300" height="300"></canvas>
+      <img id="crop-preview-img" alt="">
     </div>
     <div class="crop-zoom-wrap">
       <span class="crop-zoom-label">Zoom</span>

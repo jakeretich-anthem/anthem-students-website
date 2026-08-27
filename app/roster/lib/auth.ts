@@ -11,6 +11,7 @@ export type RosterUser = {
   passwordHash?: string;
   status?: string | null;
   photoUrl?: string | null;
+  photoCrop?: { zoom: number; offX: number; offY: number } | null;
   leaderSince?: string | null;
   funFact?: string | null;
   mustChangePassword?: boolean;
@@ -136,6 +137,7 @@ export function safeUser(user: RosterUser) {
     email: user.email,
     role: user.role,
     photoUrl: user.photoUrl || null,
+    photoCrop: user.photoCrop || null,
     leaderSince: user.leaderSince || null,
     funFact: user.funFact || null,
     expiresAt: user.expiresAt || null,

@@ -7,6 +7,10 @@ let canEdit = false;
 let DATA = { hs:{students:[]}, ms:{students:[]} };
 let currentStudentKey = null;
 let editState = { mode:'add', sk:'hs', index:-1 };
+// Transient crop metadata for the edit-student-modal's photo field — mirrors
+// ef-photoUrl's own transient-until-saveEdit() nature, since a new student
+// has no id yet to persist a photoCrop row under.
+let efPhotoCrop = null;
 let connectedVal = false;
 let interactionKey = null;
 let editInteractionContext = null;
@@ -83,21 +87,28 @@ const GRADIENTS = [
 function initials(n) {
   return (n||'?').trim().split(/\\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase();
 }
-function driveThumb(url) {
+// w defaults to a normal display size; the crop editor asks for a much larger
+// w so there's real pixel headroom to zoom into. Deliberately aspect-preserving
+// (sz=w{w} alone) rather than the old "w200-h200-c", which asked Drive to
+// center-crop to a square BEFORE the browser ever sees it — that silently
+// destroyed the parts of a non-square photo the crop-metadata feature needs
+// to still be there to pan/zoom into.
+function driveThumb(url, w) {
   if (!url) return null;
   const raw = String(url).trim();
+  const size = w || 400;
 
   // R2 URLs and direct Google-hosted image URLs are served directly
   if (raw.startsWith('/r2/')) return raw;
   if (/^https?:\\/\\//.test(raw) && raw.includes('googleusercontent.com')) return raw;
 
   const mPath = raw.match(/\\/d\\/([a-zA-Z0-9_-]+)/);
-  if (mPath) return 'https://drive.google.com/thumbnail?id=' + mPath[1] + '&sz=w200-h200-c';
+  if (mPath) return 'https://drive.google.com/thumbnail?id=' + mPath[1] + '&sz=w' + size;
 
   try {
     const u = new URL(raw);
     const id = u.searchParams.get('id');
-    if (id) return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w200-h200-c';
+    if (id) return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w' + size;
   } catch (_) {}
 
   return /^https?:\\/\\//.test(raw) ? raw : null;
@@ -456,7 +467,10 @@ function updateNav() {
   };
   ['nav-right','student-nav-right'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.innerHTML = buildRight();
+    if (!el) return;
+    el.innerHTML = buildRight();
+    const navImg = el.querySelector('.nav-avatar-img');
+    if (navImg) navImg.onload = () => applyCropToImg(navImg, currentUser && currentUser.photoCrop);
   });
   const rb = document.getElementById('readonly-banner');
   if (rb) {
@@ -550,7 +564,7 @@ async function loadRoster() {
       error = 'The roster sheet came back in a shape we could not read.';
     } else {
       DATA = data;
-      await Promise.all([loadGoals(), loadInteractionCounts(), loadNoteCounts(), loadConnectionDates()]);
+      await Promise.all([loadGoals(), loadInteractionCounts(), loadNoteCounts(), loadConnectionDates(), loadPhotoCrops()]);
     }
   } catch(e) {
     error = 'Could not reach the server. Check your connection and try again.';
@@ -636,6 +650,23 @@ async function loadGoals() {
       const g = map[p.id] || {};
       p.goals = g.goals || [];
       p.primaryGoal = g.primaryGoal || '';
+    });
+  }));
+}
+
+// Crop metadata (zoom + pan) for photos that have been re-cropped since this
+// feature shipped. Same one-map-per-tab shape as loadGoals(); a student with
+// no entry gets p.photoCrop=null, which every display site treats as "show
+// the default top-center framing" — no migration needed for older photos.
+async function loadPhotoCrops() {
+  await Promise.all(['hs','ms'].map(async sk => {
+    let map = {};
+    try {
+      const res = await fetch('/roster/api/student/photo-crop?sk='+sk);
+      if (res.ok) map = await res.json();
+    } catch(e) { /* additive, same rationale as loadGoals */ }
+    (DATA[sk].students||[]).forEach(p => {
+      p.photoCrop = map[p.id] || null;
     });
   }));
 }
@@ -774,13 +805,17 @@ function makeCard(person, idx, sk) {
   card.innerHTML = editBtn +
     '<div class="card-avatar"'+(canEdit?' onclick="'+avatarClick+'"':'')+'>'+
     '<div class="av-fallback" style="background:'+g+'">'+initials(person.name)+'</div>'+
-    (thumb ? '<img src="'+thumb+'" alt="" loading="lazy" onload="this.classList.add(\\'loaded\\')" onerror="this.style.display=\\'none\\'">' : '')+
+    (thumb ? '<img src="'+thumb+'" alt="" loading="lazy" onerror="this.style.display=\\'none\\'">' : '')+
     (canEdit?'<div class="av-edit-overlay">📷</div>':'')+
     '</div><div class="card-name-row"><div class="card-name">'+person.name+'</div>'+
     ((tr.showGrade!==false) && person.grade ? '<span class="badge-grade">Gr.'+person.grade+'</span>' : '')+'</div>'+
     (meta ? '<div class="card-meta">'+meta+'</div>' : '')+
     '<div class="card-status-row">'+statusEl+connBadge+'</div>' + goalHtml;
 
+  if (thumb) {
+    const cardImg = card.querySelector('.card-avatar img');
+    if (cardImg) cardImg.onload = () => { cardImg.classList.add('loaded'); applyCropToImg(cardImg, person.photoCrop); };
+  }
   card.addEventListener('click', () => openStudentDetail(sk, idx));
   return card;
 }
@@ -1155,7 +1190,11 @@ function openProfileModal() {
   sv('profile-funfact-input', currentUser.funFact||'');
   const img=document.getElementById('profile-av-img');
   const thumb=driveThumb(currentUser.photoUrl);
-  if(thumb){img.src=thumb;img.style.display='';img.classList.remove('loaded');}
+  if(thumb){
+    img.dataset.crop=currentUser.photoCrop?JSON.stringify(currentUser.photoCrop):'';
+    img.src=thumb;img.style.display='';img.classList.remove('loaded');
+    applyCropFromDataset(img);
+  }
   else img.style.display='none';
   const recropBtn=document.getElementById('profile-recrop-btn');
   if(recropBtn) recropBtn.style.display=currentUser.photoUrl?'':'none';
@@ -1185,21 +1224,12 @@ function uploadProfilePhoto(input) {
   reader.onload=e=>{
     const img=new Image();
     img.onload=()=>{
-      cropImg=img; cropZoom=1; cropOffX=0; cropOffY=0;
-      cropCallback=async blob=>{
-        const data=await uploadCroppedBlob(blob,'leader');
-        if(data.url){
-          await fetch('/roster/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photoUrl:data.url})});
-          currentUser.photoUrl=data.url;
-          const thumb=driveThumb(data.url)||data.url;
-          if(thumb){const i=document.getElementById('profile-av-img');i.src=thumb;i.style.display='';i.onload=()=>i.classList.add('loaded');}
-          updateNav(); showToast('✓ Photo updated','ok');
-        } else showToast(data.error||'Upload failed','error');
-      };
+      cropImg=img; cropZoom=1; cropOffX=0; cropOffY=0; cropPendingFile=file;
+      cropCallback=profileCropCallback;
       cropReplaceInputId=null;
       setCropReplaceRowVisible(false);
       openModal('crop-modal');
-      drawCrop(); initCropDrag();
+      renderCropPreview(); initCropDrag();
       const zoomEl=document.getElementById('crop-zoom');
       zoomEl.max=cropZoomBounds().max; zoomEl.value=1;
     };
@@ -1220,6 +1250,7 @@ function openEditModal(sk, index) {
   sv('ef-photoUrl',p.photoUrl||''); sv('ef-primary-goal',p.primaryGoal||'');
   sv('ef-status',statusOf(p));
   setConnected(p.connected||false);
+  efPhotoCrop=p.photoCrop||null;
   updateEditPhotoPreview();
   document.getElementById('ef-delete-btn').style.display='inline-block';
   document.getElementById('ef-save-btn').textContent='Save Changes';
@@ -1233,6 +1264,7 @@ function openAddModal(sk) {
   document.getElementById('edit-modal-sub').textContent=(sk==='hs'?'High School':'Middle School');
   ['ef-name','ef-grade','ef-school','ef-birthday','ef-notes','ef-photoUrl','ef-primary-goal'].forEach(id=>sv(id,''));
   sv('ef-status','core');
+  efPhotoCrop=null;
   setConnected(false); updateEditPhotoPreview();
   document.getElementById('ef-delete-btn').style.display='none';
   document.getElementById('ef-save-btn').textContent='Add Student';
@@ -1253,7 +1285,11 @@ function updateEditPhotoPreview() {
   document.getElementById('edit-pv-fallback').textContent=initials(name);
   const img=document.getElementById('edit-pv-img');
   const thumb=driveThumb(url);
-  if(thumb){img.style.display='';img.classList.remove('loaded');img.src=thumb;}
+  if(thumb){
+    img.dataset.crop=efPhotoCrop?JSON.stringify(efPhotoCrop):'';
+    img.style.display='';img.classList.remove('loaded');img.src=thumb;
+    applyCropFromDataset(img);
+  }
   else img.style.display='none';
   const recropBtn=document.getElementById('ef-recrop-btn');
   if(recropBtn) recropBtn.style.display=url?'':'none';
@@ -1267,16 +1303,12 @@ function uploadStudentPhoto(input) {
   reader.onload=e=>{
     const img=new Image();
     img.onload=()=>{
-      cropImg=img; cropZoom=1; cropOffX=0; cropOffY=0;
-      cropCallback=async blob=>{
-        const data=await uploadCroppedBlob(blob,'student');
-        if(data.url){sv('ef-photoUrl',data.url);updateEditPhotoPreview();showToast('✓ Uploaded','ok');}
-        else showToast(data.error||'Upload failed','error');
-      };
+      cropImg=img; cropZoom=1; cropOffX=0; cropOffY=0; cropPendingFile=file;
+      cropCallback=editFormCropCallback;
       cropReplaceInputId=null;
       setCropReplaceRowVisible(false);
       openModal('crop-modal');
-      drawCrop(); initCropDrag();
+      renderCropPreview(); initCropDrag();
       const zoomEl=document.getElementById('crop-zoom');
       zoomEl.max=cropZoomBounds().max; zoomEl.value=1;
     };
@@ -1287,16 +1319,8 @@ function uploadStudentPhoto(input) {
 
 function triggerStudentDetailPhotoUpload(sk, index) {
   if (!canEdit) return;
-  cropCallback=async blob=>{
-    const data=await uploadCroppedBlob(blob,'student');
-    if(!data.url){showToast(data.error||'Upload failed','error');return;}
-    const person=DATA[sk].students[index];
-    person.photoUrl=data.url;
-    const params=new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{photoUrl:data.url}})});
-    await fetch('/roster/api/sheet/write', writeInit(params));
-    renderStudentDetail(sk,index);
-    showToast('✓ Photo updated','ok');
-  };
+  cropCallback=studentDetailCropCallback(sk,index);
+  cropReplaceInputId=null;
   const input=document.getElementById('shared-photo-input');
   if(input){input.value='';input.click();}
 }
@@ -1326,17 +1350,18 @@ async function saveEdit() {
       // Column B is stamped by the script when connected flips on, so re-read
       // the row's date from its response rather than guessing at it here.
       if (data.lastConnected!==undefined) person.lastConnected=data.lastConnected;
-      await saveGoals(sk,person,primaryGoal,person.goals||[]);
+      person.photoCrop=efPhotoCrop;
+      await Promise.all([saveGoals(sk,person,primaryGoal,person.goals||[]), savePhotoCrop(sk,person.id,fields.photoUrl?efPhotoCrop:null)]);
       showToast(data.error?'Saved locally':'✓ Saved',data.error?'error':'ok');
     } else {
       const params=new URLSearchParams({action:'add',payload:JSON.stringify({sheet:sk,person:fields})});
       const res=await fetch('/roster/api/sheet/write', writeInit(params));
       const data=await res.json();
-      const person={...fields,goals:[],primaryGoal:'',lastConnected:data.lastConnected||''};
+      const person={...fields,goals:[],primaryGoal:'',photoCrop:efPhotoCrop,lastConnected:data.lastConnected||''};
       if (data.newRowIndex!==undefined) person.rowIndex=data.newRowIndex;
       if (data.id) person.id=data.id;
       DATA[sk].students.push(person);
-      await saveGoals(sk,person,primaryGoal,[]);
+      await Promise.all([saveGoals(sk,person,primaryGoal,[]), savePhotoCrop(sk,person.id,fields.photoUrl?efPhotoCrop:null)]);
       showToast(data.error?'Added locally':'✓ Student added',data.error?'error':'ok');
     }
   } catch(e) {
@@ -1410,7 +1435,7 @@ async function renderStudentDetail(sk, index) {
     '<div class="student-hero">'+
       '<div class="sd-avatar-wrap"'+sdAvatarClick+'>'+
       '<div class="student-avatar-lg"><div class="av-fallback" style="background:'+g+'">'+initials(person.name)+'</div>'+
-      (thumb?'<img src="'+thumb+'" alt="" onload="this.classList.add(\\'loaded\\')" onerror="this.style.display=\\'none\\'">':'')+
+      (thumb?'<img src="'+thumb+'" alt="" onerror="this.style.display=\\'none\\'">':'')+
       '</div>'+
       (canEdit?'<div class="av-cam-overlay">📷</div>':'')+
       '</div>'+
@@ -1459,6 +1484,11 @@ async function renderStudentDetail(sk, index) {
           '<div id="interactions-list"><div class="loader"><div class="loader-ring"></div></div></div>'+
         '</div>' : '')+
     '</div>';
+
+  if (thumb) {
+    const heroImg = el.querySelector('.student-avatar-lg img');
+    if (heroImg) heroImg.onload = () => { heroImg.classList.add('loaded'); applyCropToImg(heroImg, person.photoCrop); };
+  }
 
   // Load goals
   const goals=person.goals||[];
@@ -2083,7 +2113,7 @@ async function loadActivityFeed() {
         '<div class="act-header">'+
           '<div class="act-avatars">'+
             '<div class="act-av"><div class="av-fallback" style="background:'+sg+'">'+initials(item.studentName)+'</div>'+
-            (sThumb?'<img src="'+sThumb+'" onload="this.classList.add(\\'loaded\\')" onerror="this.style.display=\\'none\\'">':'')+
+            (sThumb?'<img src="'+sThumb+'" onerror="this.style.display=\\'none\\'">':'')+
             '</div>'+
             '<div class="act-av"><div class="av-fallback" style="background:'+lg+'">'+initials(item.leader)+'</div></div>'+
           '</div>'+
@@ -2095,6 +2125,13 @@ async function loadActivityFeed() {
         '<div class="act-summary">'+item.summary.slice(0,200)+(item.summary.length>200?'…':'')+'</div>'+
       '</div>';
     }).join('');
+    const cards=el.querySelectorAll('.act-card');
+    items.forEach((item,i)=>{
+      const card=cards[i]; if(!card) return;
+      const img=card.querySelector('.act-av img'); if(!img) return;
+      const student=findStudent(item.studentName);
+      img.onload=()=>{ img.classList.add('loaded'); applyCropToImg(img, student&&student.photoCrop); };
+    });
   } catch(e) { el.innerHTML='<div class="empty"><p>Could not load activity.</p></div>'; }
 }
 
@@ -2796,19 +2833,17 @@ function sv(id,val) { const el=document.getElementById(id); if(el) el.value=val;
 function setMsg(el,msg,type) { el.textContent=msg; el.className='auth-msg '+(type||''); }
 
 // ── PHOTO CROP / COMPRESS ─────────────────────────────────────
+// cropOffX/cropOffY are fractions of the editing preview's own CSS width —
+// resolution-independent, so the same numbers reproduce the same visual crop
+// at any avatar size via applyCropToImg() below. cropZoom is likewise a
+// resolution-independent multiplier on the "fit-the-shorter-side" baseline
+// (exactly what CSS object-fit:cover does at zoom=1).
 let cropImg=null, cropZoom=1, cropOffX=0, cropOffY=0, cropIsDragging=false, cropDragStartX=0, cropDragStartY=0;
-let cropCallback=null, cropPhotoContext=null, cropPreviewSize=300, cropPreviewDpr=1;
+let cropCallback=null, cropPendingFile=null;
 // Which <input type=file> "Choose a different photo" should reopen, when the
 // crop modal was opened on an *existing* photo (recrop) rather than a fresh
 // pick. Null hides that link — a fresh pick has nothing to "go back" to.
 let cropReplaceInputId=null;
-
-function triggerPhotoUpload(ctx, callback) {
-  cropPhotoContext=ctx;
-  cropCallback=callback;
-  const input=document.getElementById('shared-photo-input');
-  if(input){input.value='';input.click();}
-}
 
 function onSharedPhotoSelected(input) {
   const file=input.files[0];
@@ -2818,11 +2853,11 @@ function onSharedPhotoSelected(input) {
   reader.onload=e=>{
     const img=new Image();
     img.onload=()=>{
-      cropImg=img; cropZoom=1; cropOffX=0; cropOffY=0;
+      cropImg=img; cropZoom=1; cropOffX=0; cropOffY=0; cropPendingFile=file;
       cropReplaceInputId=null;
       setCropReplaceRowVisible(false);
       openModal('crop-modal');
-      drawCrop();
+      renderCropPreview();
       initCropDrag();
       const zoomEl=document.getElementById('crop-zoom');
       zoomEl.max=cropZoomBounds().max; zoomEl.value=1;
@@ -2834,24 +2869,25 @@ function onSharedPhotoSelected(input) {
 
 // Re-opens the crop editor on a photo that's already uploaded (Drive or
 // Supabase Storage), so a leader can fix the crop without picking a new
-// file. Loaded through /roster/api/photo-proxy rather than the image's own
-// URL — neither host reliably sends CORS headers, so drawing straight from
-// them would taint the canvas and block saveCrop()'s toBlob() call.
+// file. Loads the display-sized thumbnail directly — no more canvas pixel
+// readback happens anywhere in this flow, so there's nothing left that a
+// missing CORS header could taint.
 function loadExistingCropImage(url) {
   if (!url) return;
   showToast('Loading photo…');
+  cropPendingFile=null;
   const img=new Image();
   img.onload=()=>{
     cropImg=img; cropZoom=1; cropOffX=0; cropOffY=0;
     setCropReplaceRowVisible(true);
     openModal('crop-modal');
-    drawCrop();
+    renderCropPreview();
     initCropDrag();
     const zoomEl=document.getElementById('crop-zoom');
     zoomEl.max=cropZoomBounds().max; zoomEl.value=1;
   };
   img.onerror=()=>showToast('Could not load photo for editing','error');
-  img.src='/roster/api/photo-proxy?url='+encodeURIComponent(driveThumb(url)||url);
+  img.src=driveThumb(url,1600)||url;
 }
 
 function setCropReplaceRowVisible(visible) {
@@ -2860,8 +2896,11 @@ function setCropReplaceRowVisible(visible) {
 }
 
 // The crop modal's "choose a different photo" escape hatch: keeps whatever
-// cropCallback/type the recrop entry point already set up, just swaps in a
-// freshly picked file instead of the existing photo.
+// cropCallback the recrop entry point already set up, just swaps in a
+// freshly picked file instead of the existing photo. Safe because every
+// cropCallback now takes the picked File as its second argument and decides
+// whether to upload based on whether one was actually passed, rather than on
+// which function happened to install the callback.
 function cropPickDifferentPhoto() {
   const inputId=cropReplaceInputId;
   closeModal('crop-modal');
@@ -2872,33 +2911,72 @@ function cropPickDifferentPhoto() {
   }
 }
 
+// crop: {zoom,offX,offY}. file: the picked File when there's a genuine new
+// original to upload (fresh pick, or "choose a different photo instead");
+// null for a same-photo recrop, where photoUrl never changes.
+async function profileCropCallback(crop, file) {
+  let url=currentUser.photoUrl;
+  if (file) {
+    const data=await uploadOriginalPhoto(file,'leader');
+    if(!data.url){showToast(data.error||'Upload failed','error');return;}
+    url=data.url;
+  }
+  await fetch('/roster/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photoUrl:url,photoCrop:crop})});
+  currentUser.photoUrl=url; currentUser.photoCrop=crop;
+  const i=document.getElementById('profile-av-img');
+  if(i){
+    i.dataset.crop=JSON.stringify(crop);
+    i.src=driveThumb(url)||url;
+    i.style.display='';
+    applyCropFromDataset(i); // in case src didn't change and onload won't refire
+  }
+  updateNav(); showToast('✓ Photo updated','ok');
+}
+
 function recropProfilePhoto() {
   if (!currentUser || !currentUser.photoUrl) return;
   cropReplaceInputId='profile-photo-input';
-  cropCallback=async blob=>{
-    const data=await uploadCroppedBlob(blob,'leader');
-    if(data.url){
-      await fetch('/roster/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photoUrl:data.url})});
-      currentUser.photoUrl=data.url;
-      const thumb=driveThumb(data.url)||data.url;
-      const i=document.getElementById('profile-av-img');
-      if(i){i.src=thumb;i.style.display='';i.onload=()=>i.classList.add('loaded');}
-      updateNav(); showToast('✓ Photo updated','ok');
-    } else showToast(data.error||'Upload failed','error');
-  };
+  cropCallback=profileCropCallback;
   loadExistingCropImage(currentUser.photoUrl);
+}
+
+async function editFormCropCallback(crop, file) {
+  let url=v('ef-photoUrl');
+  if (file) {
+    const data=await uploadOriginalPhoto(file,'student');
+    if(!data.url){showToast(data.error||'Upload failed','error');return;}
+    url=data.url; sv('ef-photoUrl',url);
+  }
+  efPhotoCrop=crop;
+  updateEditPhotoPreview();
+  showToast(file?'✓ Uploaded':'✓ Crop updated','ok');
 }
 
 function recropEditFormPhoto() {
   const url=v('ef-photoUrl');
   if (!url) return;
   cropReplaceInputId='photo-upload-input';
-  cropCallback=async blob=>{
-    const data=await uploadCroppedBlob(blob,'student');
-    if(data.url){sv('ef-photoUrl',data.url);updateEditPhotoPreview();showToast('✓ Uploaded','ok');}
-    else showToast(data.error||'Upload failed','error');
-  };
+  cropCallback=editFormCropCallback;
   loadExistingCropImage(url);
+}
+
+function studentDetailCropCallback(sk, index) {
+  return async (crop, file) => {
+    const person=DATA[sk].students[index];
+    let url=person.photoUrl;
+    if (file) {
+      const data=await uploadOriginalPhoto(file,'student');
+      if(!data.url){showToast(data.error||'Upload failed','error');return;}
+      url=data.url;
+      const params=new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{photoUrl:url}})});
+      await fetch('/roster/api/sheet/write', writeInit(params));
+      person.photoUrl=url;
+    }
+    person.photoCrop=crop;
+    await savePhotoCrop(sk, person.id, crop);
+    renderStudentDetail(sk,index);
+    showToast('✓ Photo updated','ok');
+  };
 }
 
 function recropStudentPhoto(sk, index) {
@@ -2906,51 +2984,52 @@ function recropStudentPhoto(sk, index) {
   const person=DATA[sk].students[index];
   if (!person.photoUrl) return;
   cropReplaceInputId='shared-photo-input';
-  cropCallback=async blob=>{
-    const data=await uploadCroppedBlob(blob,'student');
-    if(!data.url){showToast(data.error||'Upload failed','error');return;}
-    person.photoUrl=data.url;
-    const params=new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{photoUrl:data.url}})});
-    await fetch('/roster/api/sheet/write', writeInit(params));
-    renderStudentDetail(sk,index);
-    showToast('✓ Photo updated','ok');
-  };
+  cropCallback=studentDetailCropCallback(sk,index);
   loadExistingCropImage(person.photoUrl);
 }
 
-// Renders cropImg into the on-screen preview canvas, sizing the canvas's
-// backing store from its displayed CSS size × devicePixelRatio (capped at 2x)
-// so the preview stays crisp on retina screens at any responsive width.
-// cropPreviewSize/cropPreviewDpr are recorded here so getCropSourceRect() can
-// map the preview's pan/zoom state back onto cropImg's native pixels exactly.
-function drawCrop() {
-  const canvas=document.getElementById('crop-canvas');
-  if(!canvas||!cropImg) return;
-  const wrap=canvas.parentElement;
-  const cssSize=(wrap&&wrap.clientWidth)||300;
-  const dpr=Math.min(window.devicePixelRatio||1,2);
-  const SIZE=Math.round(cssSize*dpr);
-  if(canvas.width!==SIZE||canvas.height!==SIZE){canvas.width=SIZE;canvas.height=SIZE;}
-  cropPreviewSize=SIZE; cropPreviewDpr=dpr;
-  const ctx=canvas.getContext('2d');
-  ctx.clearRect(0,0,SIZE,SIZE);
-  const base=Math.min(cropImg.width,cropImg.height);
-  const scale=(SIZE/base)*cropZoom;
-  const w=cropImg.width*scale, h=cropImg.height*scale;
-  ctx.drawImage(cropImg, (SIZE-w)/2+cropOffX*dpr, (SIZE-h)/2+cropOffY*dpr, w, h);
+// Applies stored crop metadata to a displayed <img> by explicit width/height/
+// left/top percentages, sized against the shorter side (base) the same way
+// zoom=1 already matches CSS object-fit:cover. iw/ih default to the image's
+// own natural size but can be passed explicitly for the editor preview,
+// where cropImg's dimensions are already known before crop-preview-img's own
+// load has necessarily fired for the *new* src.
+function applyCropToImg(imgEl, crop, iw, ih) {
+  if (!crop || !crop.zoom) return;
+  iw = iw || imgEl.naturalWidth; ih = ih || imgEl.naturalHeight;
+  if (!iw || !ih) return;
+  const base=Math.min(iw,ih);
+  const wPct=(iw/base)*crop.zoom*100, hPct=(ih/base)*crop.zoom*100;
+  imgEl.style.width=wPct+'%'; imgEl.style.height=hPct+'%';
+  imgEl.style.left=(50*(1-wPct/100)+crop.offX*100)+'%';
+  imgEl.style.top=(50*(1-hPct/100)+crop.offY*100)+'%';
+  imgEl.style.right='auto'; imgEl.style.bottom='auto'; // inset:0 sets these; clear or the box is over-constrained
 }
 
-// Maps the preview's current pan/zoom onto cropImg's own pixel space, so
-// saveCrop() can re-render the crop from the original full-resolution photo
-// instead of upscaling the (comparatively tiny) on-screen preview canvas.
-function getCropSourceRect() {
-  const dpr=cropPreviewDpr||1;
+function applyCropFromDataset(imgEl) {
+  let crop=null;
+  try { crop=JSON.parse(imgEl.dataset.crop||'null'); } catch(e) {}
+  applyCropToImg(imgEl, crop);
+}
+
+function renderCropPreview() {
+  const img=document.getElementById('crop-preview-img');
+  if(!img||!cropImg) return;
+  if(img.src!==cropImg.src) img.src=cropImg.src;
+  applyCropToImg(img, {zoom:cropZoom, offX:cropOffX, offY:cropOffY}, cropImg.width, cropImg.height);
+}
+
+// A pan can't be allowed to pull the image's edge inside the container —
+// unlike the old canvas bake, an unclamped offset here would be saved and
+// shown as a gap/background leak everywhere the photo displays, not just
+// visible-and-fixable in the editor.
+function clampCropOffsets() {
+  if (!cropImg) return;
   const base=Math.min(cropImg.width,cropImg.height);
-  const scale=(cropPreviewSize/base)*cropZoom;
-  const cropSize=cropPreviewSize/scale;
-  const cx=cropImg.width/2 - (cropOffX*dpr)/scale;
-  const cy=cropImg.height/2 - (cropOffY*dpr)/scale;
-  return {sx:cx-cropSize/2, sy:cy-cropSize/2, ssize:cropSize};
+  const maxX=Math.max(0,((cropImg.width/base)*cropZoom-1)/2);
+  const maxY=Math.max(0,((cropImg.height/base)*cropZoom-1)/2);
+  cropOffX=Math.min(maxX,Math.max(-maxX,cropOffX));
+  cropOffY=Math.min(maxY,Math.max(-maxY,cropOffY));
 }
 
 // Caps zoom relative to the source image's own resolution so a small source
@@ -2958,23 +3037,27 @@ function getCropSourceRect() {
 function cropZoomBounds() {
   if(!cropImg) return {min:1,max:8};
   const base=Math.min(cropImg.width,cropImg.height);
-  const maxByRes=Math.max(1.2,(base*8)/(cropPreviewSize||300));
+  const wrap=document.querySelector('.crop-canvas-wrap');
+  const cssSize=(wrap&&wrap.clientWidth)||300;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const maxByRes=Math.max(1.2,(base*8)/(cssSize*dpr));
   return {min:1,max:Math.min(8,maxByRes)};
 }
 
 function setCropZoom(z) {
   const {min,max}=cropZoomBounds();
   cropZoom=Math.min(max,Math.max(min,z));
+  clampCropOffsets();
   const zoomEl=document.getElementById('crop-zoom');
   if(zoomEl) zoomEl.value=cropZoom;
-  drawCrop();
+  renderCropPreview();
 }
 
 function resetCropView() {
   cropZoom=1; cropOffX=0; cropOffY=0;
   const zoomEl=document.getElementById('crop-zoom');
   if(zoomEl) zoomEl.value=1;
-  drawCrop();
+  renderCropPreview();
 }
 
 function initCropDrag() {
@@ -2983,8 +3066,16 @@ function initCropDrag() {
   wrap._cropDragInit=true;
 
   // Mouse pan (desktop).
-  wrap.addEventListener('mousedown',e=>{cropIsDragging=true;cropDragStartX=e.clientX-cropOffX;cropDragStartY=e.clientY-cropOffY;});
-  window.addEventListener('mousemove',e=>{if(!cropIsDragging)return;cropOffX=e.clientX-cropDragStartX;cropOffY=e.clientY-cropDragStartY;drawCrop();});
+  wrap.addEventListener('mousedown',e=>{
+    const cssSize=wrap.clientWidth||300;
+    cropIsDragging=true;cropDragStartX=e.clientX-cropOffX*cssSize;cropDragStartY=e.clientY-cropOffY*cssSize;
+  });
+  window.addEventListener('mousemove',e=>{
+    if(!cropIsDragging)return;
+    const cssSize=wrap.clientWidth||300;
+    cropOffX=(e.clientX-cropDragStartX)/cssSize; cropOffY=(e.clientY-cropDragStartY)/cssSize;
+    clampCropOffsets(); renderCropPreview();
+  });
   window.addEventListener('mouseup',()=>{cropIsDragging=false;});
 
   // Wheel-to-zoom (desktop) — prevents page scroll under the modal.
@@ -3014,7 +3105,8 @@ function initCropDrag() {
       pinchStartZoom=cropZoom;
     } else if(e.touches.length===1){
       const t=e.touches[0];
-      cropIsDragging=true;cropDragStartX=t.clientX-cropOffX;cropDragStartY=t.clientY-cropOffY;
+      const cssSize=wrap.clientWidth||300;
+      cropIsDragging=true;cropDragStartX=t.clientX-cropOffX*cssSize;cropDragStartY=t.clientY-cropOffY*cssSize;
     }
   },{passive:true});
 
@@ -3024,8 +3116,9 @@ function initCropDrag() {
       if(pinchStartDist>0) setCropZoom(pinchStartZoom*(dist/pinchStartDist));
     } else if(e.touches.length===1 && cropIsDragging){
       const t=e.touches[0];
-      cropOffX=t.clientX-cropDragStartX;cropOffY=t.clientY-cropDragStartY;
-      drawCrop();
+      const cssSize=wrap.clientWidth||300;
+      cropOffX=(t.clientX-cropDragStartX)/cssSize;cropOffY=(t.clientY-cropDragStartY)/cssSize;
+      clampCropOffsets(); renderCropPreview();
     }
   },{passive:true});
 
@@ -3035,44 +3128,28 @@ function initCropDrag() {
   },{passive:true});
 }
 
-// Re-fit the preview canvas if the modal is open when the viewport changes
-// (phone rotation, window resize) — drawCrop() re-reads the wrapper's CSS size.
-window.addEventListener('resize',()=>{
-  const modal=document.getElementById('crop-modal');
-  if(cropImg && modal && modal.classList.contains('open')) drawCrop();
-});
-
 function onCropZoom(val) {
   setCropZoom(+val);
 }
 
 function closeCropModal() {
   closeModal('crop-modal');
-  cropCallback=null; cropPhotoContext=null; cropImg=null; cropReplaceInputId=null;
+  cropCallback=null; cropImg=null; cropReplaceInputId=null; cropPendingFile=null;
 }
 
-// Re-renders the crop from cropImg's native pixels (not the on-screen preview
-// canvas) so output resolution isn't capped by the preview's small backing
-// store — see getCropSourceRect().
 function saveCrop() {
   if(!cropImg) return;
-  const {sx,sy,ssize}=getCropSourceRect();
-  const OUT=Math.min(1200,Math.max(cropImg.width,cropImg.height));
-  const out=document.createElement('canvas');
-  out.width=OUT; out.height=OUT;
-  const octx=out.getContext('2d');
-  octx.imageSmoothingQuality='high';
-  octx.drawImage(cropImg, sx, sy, ssize, ssize, 0, 0, OUT, OUT);
-  out.toBlob(blob=>{
-    closeModal('crop-modal');
-    if(cropCallback) cropCallback(blob);
-  },'image/jpeg',0.9);
+  clampCropOffsets();
+  const crop={zoom:cropZoom, offX:cropOffX, offY:cropOffY};
+  const file=cropPendingFile; cropPendingFile=null;
+  closeModal('crop-modal');
+  if(cropCallback) cropCallback(crop, file);
 }
 
-async function uploadCroppedBlob(blob, type) {
+async function uploadOriginalPhoto(file, type) {
   showToast('Uploading…');
   try {
-    const fd=new FormData(); fd.append('file',blob,'photo.jpg'); fd.append('type',type);
+    const fd=new FormData(); fd.append('file',file,file.name||'photo.jpg'); fd.append('type',type);
     const res=await fetch('/roster/api/upload-photo',{method:'POST',body:fd});
     const data=await res.json().catch(()=>({}));
     if(!res.ok||!data.url) return {error:data.error||('Upload failed ('+res.status+')')};
@@ -3080,6 +3157,12 @@ async function uploadCroppedBlob(blob, type) {
   } catch(e) {
     return {error:'Upload failed — check your connection and try again'};
   }
+}
+
+async function savePhotoCrop(sk, id, crop) {
+  if (!sk || !id || !crop) return;
+  await fetch('/roster/api/student/photo-crop', {method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({sk, id, ...crop})});
 }
 
 // ── ORG SETTINGS (public branding) ────────────────────────────

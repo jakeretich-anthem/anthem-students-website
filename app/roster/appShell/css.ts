@@ -286,10 +286,11 @@ body {
   background: var(--accent); display: flex; align-items: center;
   justify-content: center; font-size: 12px; font-weight: 700; color: #000;
   cursor: pointer; border: none; transition: transform .2s, box-shadow .2s;
+  position: relative; overflow: hidden;
 }
 .nav-avatar:hover { transform: scale(1.1); box-shadow: 0 4px 16px rgba(245,200,66,.4); }
 .nav-avatar.has-photo { padding: 0; background: transparent; border: 1px solid var(--accent-border); }
-.nav-avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+.nav-avatar-img { position: absolute; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
 .nav-hamburger {
   display: none; flex-direction: column; justify-content: center; align-items: center;
   gap: 5px; width: 36px; height: 36px; background: transparent; border: 1px solid var(--border2);
@@ -1005,7 +1006,7 @@ input[type=file] { display: none; }
   touch-action: none;
 }
 .crop-canvas-wrap:active { cursor: grabbing; }
-#crop-canvas { display: block; width: 100%; height: 100%; }
+#crop-preview-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 @media (max-width: 480px) {
   .crop-modal-inner { max-width: 100%; }
   .crop-canvas-wrap { width: min(240px, calc(100vw - 88px)); height: min(240px, calc(100vw - 88px)); }
