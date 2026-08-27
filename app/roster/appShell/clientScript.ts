@@ -2851,7 +2851,7 @@ function loadExistingCropImage(url) {
     zoomEl.max=cropZoomBounds().max; zoomEl.value=1;
   };
   img.onerror=()=>showToast('Could not load photo for editing','error');
-  img.src='/roster/api/photo-proxy?url='+encodeURIComponent(url);
+  img.src='/roster/api/photo-proxy?url='+encodeURIComponent(driveThumb(url)||url);
 }
 
 function setCropReplaceRowVisible(visible) {
