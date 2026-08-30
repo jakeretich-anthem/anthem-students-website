@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { kvDelete, kvGet, kvList } from "./kv";
 
@@ -46,7 +47,13 @@ export async function getToken(): Promise<string | null> {
   return jar.get(SESSION_COOKIE_NAME)?.value ?? null;
 }
 
-export async function getSessionUser(): Promise<RosterUser | null> {
+// Wrapped in React's cache() so the several independent permission checks
+// that now happen inside a single request (e.g. app/roster/api/bootstrap,
+// which gates different pieces of its combined payload on different
+// modules) share one session/user lookup instead of re-hitting Supabase per
+// check — this was previously the biggest cost of the old one-endpoint-per-
+// data-slice roster load (up to 30+ sequential Supabase round trips).
+export const getSessionUser = cache(async (): Promise<RosterUser | null> => {
   const token = await getToken();
   if (!token) return null;
   const sess = await kvGet<Session>(`session:${token}`);
@@ -59,7 +66,7 @@ export async function getSessionUser(): Promise<RosterUser | null> {
     return { name: "Viewer", email: null, role: "viewer", expiresAt: sess.expiresAt };
   }
   return kvGet<RosterUser>(`user:${sess.email}`);
-}
+});
 
 export const PERMISSION_LEVELS: Record<string, number> = { none: 0, view: 1, edit: 2, admin: 3 };
 export const ROLE_DEFAULTS: Record<string, string> = {
@@ -80,7 +87,7 @@ const DEFAULT_MODULES: Record<string, Record<string, string>> = {
   dashboard: { pending: "view", approved: "view", leader: "view", admin: "admin" },
 };
 
-export async function getPermissionMatrix(): Promise<Record<string, Record<string, string>>> {
+export const getPermissionMatrix = cache(async (): Promise<Record<string, Record<string, string>>> => {
   const settings = await kvGet<{ permissions?: { modules?: Record<string, Record<string, string>> } }>(
     "settings:org"
   );
@@ -90,7 +97,7 @@ export async function getPermissionMatrix(): Promise<Record<string, Record<strin
     merged[module] = { ...defaults, ...(matrix[module] || {}) };
   }
   return merged;
-}
+});
 
 export async function hasPermission(user: RosterUser | null, module: string, level = "view"): Promise<boolean> {
   if (!user) return false;

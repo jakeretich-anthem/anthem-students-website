@@ -549,25 +549,73 @@ function isConnected(person) { return connectionState(person) === 'connected'; }
 function statusOf(p) { return STATUS_LABELS[p.status] ? p.status : 'core'; }
 
 // ── ROSTER ───────────────────────────────────────────────────
-async function loadRoster() {
-  // Every failure here used to be swallowed and rendered as "No students here
-  // yet", which is indistinguishable from an empty sheet — say what went wrong
-  // instead, and give the leader a way to retry without reloading.
-  let error = null;
+// Two-stage load: paint instantly from the Supabase-backed cache (names,
+// status, low-res thumbnails — see /roster/api/cache/read), then resolve the
+// authoritative Google Sheet in the background and reconcile. The cache is
+// kept in step by a Vercel Cron job and by a write-through patch on every
+// app-side edit (see app/roster/lib/rosterSync.ts and
+// app/roster/api/sheet/write/route.ts) — it's a mirror, never a second
+// source of truth.
+async function loadCacheSnapshot() {
+  try {
+    const res = await fetch('/roster/api/cache/read');
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data || !data.hs || !Array.isArray(data.hs.students)) return false;
+    if (!data.hs.students.length && !data.ms.students.length) return false;
+    DATA = data;
+    return true;
+  } catch(e) { return false; }
+}
+
+async function fetchSheet() {
   try {
     const res = await fetch('/roster/api/sheet/read');
     let data = null;
     try { data = await res.json(); } catch(_) {}
-    if (!res.ok) {
-      error = (data && data.error) || ('The roster sheet returned ' + res.status + '.');
-    } else if (!data || !data.hs || !Array.isArray(data.hs.students)) {
-      error = 'The roster sheet came back in a shape we could not read.';
-    } else {
-      DATA = data;
-      await Promise.all([loadGoals(), loadInteractionCounts(), loadNoteCounts(), loadConnectionDates(), loadPhotoCrops()]);
-    }
+    if (!res.ok) return { error: (data && data.error) || ('The roster sheet returned ' + res.status + '.') };
+    if (!data || !data.hs || !Array.isArray(data.hs.students)) return { error: 'The roster sheet came back in a shape we could not read.' };
+    return { data };
   } catch(e) {
-    error = 'Could not reach the server. Check your connection and try again.';
+    return { error: 'Could not reach the server. Check your connection and try again.' };
+  }
+}
+
+async function loadRoster() {
+  // The cache paints the grid immediately, if there's anything in it yet —
+  // failure here is silent and non-fatal, the authoritative fetch below
+  // still runs and is what error-handling and the sweep hang off of.
+  let cacheThumbsById = null;
+  if (await loadCacheSnapshot()) {
+    cacheThumbsById = {hs:{}, ms:{}};
+    ['hs','ms'].forEach(sk => (DATA[sk].students||[]).forEach(p => {
+      if (p.thumbUrl) cacheThumbsById[sk][p.id] = p.thumbUrl;
+    }));
+    renderAll();
+  }
+
+  // Every failure here used to be swallowed and rendered as "No students here
+  // yet", which is indistinguishable from an empty sheet — say what went wrong
+  // instead, and give the leader a way to retry without reloading.
+  let error = null;
+  const [sheetResult, extras] = await Promise.all([
+    fetchSheet(),
+    fetch('/roster/api/bootstrap').then(r => r.ok ? r.json() : null).catch(() => null),
+  ]);
+  if (sheetResult.error) {
+    error = sheetResult.error;
+  } else {
+    DATA = sheetResult.data;
+    // The sheet payload has no thumbUrl of its own — carry over what the
+    // cache snapshot already had so a card that's already showing a low-res
+    // photo doesn't flash back to the initials avatar while makeCard()
+    // rebuilds it a second time here.
+    if (cacheThumbsById) {
+      ['hs','ms'].forEach(sk => (DATA[sk].students||[]).forEach(p => {
+        p.thumbUrl = cacheThumbsById[sk][p.id] || null;
+      }));
+    }
+    applyBootstrapExtras(extras);
   }
   showRosterError(error);
   renderAll();
@@ -576,22 +624,33 @@ async function loadRoster() {
   if (!error) sweepStaleConnections();
 }
 
-// The sheet's column B holds one date; the log behind it holds all of them.
-// Where the two disagree the log wins — a leader who corrected a wrong day did
-// it there, and the sheet cell can only have been written by an older toggle.
-async function loadConnectionDates() {
-  await Promise.all(['hs','ms'].map(async sk => {
-    let map = {};
-    try {
-      const res = await fetch('/roster/api/student/connections?sk='+sk);
-      if (res.ok) map = (await res.json()).latest || {};
-    } catch(e) { /* additive — the sheet's own date still stands */ }
+// Replaces what used to be five separate per-tab-pair fetches (goals,
+// interaction counts, note counts, connection dates, photo crops) with the
+// one combined /roster/api/bootstrap response — see that route for why.
+let interactionCountsOk = false;
+function applyBootstrapExtras(extras) {
+  interactionCountsOk = !!(extras && extras.interactionCountsOk);
+  ['hs','ms'].forEach(sk => {
+    const goalsMap = (extras && extras.goals && extras.goals[sk]) || {};
+    const noteCountsMap = (extras && extras.noteCounts && extras.noteCounts[sk]) || {};
+    const connMap = (extras && extras.connectionDates && extras.connectionDates[sk]) || {};
+    const cropMap = (extras && extras.photoCrops && extras.photoCrops[sk]) || {};
+    const intMap = (extras && extras.interactionCounts && extras.interactionCounts[sk]) || {};
     (DATA[sk].students||[]).forEach(p => {
-      const entry = map[p.id] || {};
-      p.connectionCount = entry.count || 0;
-      if (entry.latest) p.lastConnected = entry.latest;
+      const g = goalsMap[p.id] || {};
+      p.goals = g.goals || [];
+      p.primaryGoal = g.primaryGoal || '';
+      p.noteCount = noteCountsMap[p.id] || 0;
+      // The sheet's own last-connection cell holds one date; the log behind
+      // it holds all of them. Where they disagree the log wins — a leader
+      // who corrected a wrong day did it there.
+      const connEntry = connMap[p.id] || {};
+      p.connectionCount = connEntry.count || 0;
+      if (connEntry.latest) p.lastConnected = connEntry.latest;
+      p.photoCrop = cropMap[p.id] || null;
+      p.interactionCount = intMap[p.id] || 0;
     });
-  }));
+  });
 }
 
 // Puts the sheet back in step with what the app is already showing. A student
@@ -633,75 +692,6 @@ async function sweepStaleConnections() {
   if (reset) {
     showToast(reset+' student'+(reset===1?'':'s')+' passed '+connectionResetMonths()+' months — marked as needing a connection');
   }
-}
-
-// Goals left the sheet when its Goals column was deleted; they live in
-// roster_kv now, keyed by the student's sheet ID. Fetched as one map per tab
-// rather than per card, then hung off the student objects so every existing
-// reader (the card progress bar, the detail panel) keeps working unchanged.
-async function loadGoals() {
-  await Promise.all(['hs','ms'].map(async sk => {
-    let map = {};
-    try {
-      const res = await fetch('/roster/api/student/goals?sk='+sk);
-      if (res.ok) map = await res.json();
-    } catch(e) { /* goals are additive — a failure here shouldn't blank the roster */ }
-    (DATA[sk].students||[]).forEach(p => {
-      const g = map[p.id] || {};
-      p.goals = g.goals || [];
-      p.primaryGoal = g.primaryGoal || '';
-    });
-  }));
-}
-
-// Crop metadata (zoom + pan) for photos that have been re-cropped since this
-// feature shipped. Same one-map-per-tab shape as loadGoals(); a student with
-// no entry gets p.photoCrop=null, which every display site treats as "show
-// the default top-center framing" — no migration needed for older photos.
-async function loadPhotoCrops() {
-  await Promise.all(['hs','ms'].map(async sk => {
-    let map = {};
-    try {
-      const res = await fetch('/roster/api/student/photo-crop?sk='+sk);
-      if (res.ok) map = await res.json();
-    } catch(e) { /* additive, same rationale as loadGoals */ }
-    (DATA[sk].students||[]).forEach(p => {
-      p.photoCrop = map[p.id] || null;
-    });
-  }));
-}
-
-// Hangout counts used to come from a sheet column the Apps Script maintained.
-// That column is gone, so the "Most interactions" sort reads them from the
-// notes store instead.
-let interactionCountsOk = false;
-async function loadInteractionCounts() {
-  let ok = false;
-  await Promise.all(['hs','ms'].map(async sk => {
-    let counts = {};
-    try {
-      const res = await fetch('/roster/api/student/interactions?sk='+sk);
-      if (res.ok) { counts = (await res.json()).counts || {}; ok = true; }
-    } catch(e) { /* the sort degrades to zeroes; not worth failing the load */ }
-    (DATA[sk].students||[]).forEach(p => { p.interactionCount = counts[p.id] || 0; });
-  }));
-  // The sort can live with zeroes; the dashboard can't — a zero it can't tell
-  // apart from "no access" reads as "nobody has ever hung out with anyone".
-  interactionCountsOk = ok;
-}
-
-// Note counts for the dashboard's "N students have notes" fact. The notes
-// themselves load per-student when their detail screen opens, the same way the
-// hangout log does — no card shows them, so there is nothing to wait on here.
-async function loadNoteCounts() {
-  await Promise.all(['hs','ms'].map(async sk => {
-    let counts = {};
-    try {
-      const res = await fetch('/roster/api/student/notes?sk='+sk);
-      if (res.ok) counts = (await res.json()).counts || {};
-    } catch(e) { /* additive — a failure here shouldn't blank the roster */ }
-    (DATA[sk].students||[]).forEach(p => { p.noteCount = counts[p.id] || 0; });
-  }));
 }
 
 function showRosterError(message) {
@@ -752,7 +742,13 @@ function makeCard(person, idx, sk) {
   // rebuilding the whole grid mid-tap.
   card.dataset.sk=sk; card.dataset.idx=idx;
   const g = GRADIENTS[idx % GRADIENTS.length];
-  const thumb = driveThumb(person.photoUrl);
+  // person.thumbUrl is the low-res copy re-hosted in Supabase Storage (see
+  // /roster/api/cache/read) — paint that first when it's there, and quietly
+  // upgrade to the full-res Drive photo once it's loaded, below. A student
+  // with no cached thumb yet (or loaded straight from the sheet, bypassing
+  // the cache) just gets the full-res image directly, same as before.
+  const fullThumb = driveThumb(person.photoUrl);
+  const thumb = person.thumbUrl || fullThumb;
   const age = calcAge(person.birthday);
 
   const tr = orgSettings?.tracking || {school:true,birthdays:true,age:true,showGrade:true};
@@ -814,7 +810,17 @@ function makeCard(person, idx, sk) {
 
   if (thumb) {
     const cardImg = card.querySelector('.card-avatar img');
-    if (cardImg) cardImg.onload = () => { cardImg.classList.add('loaded'); applyCropToImg(cardImg, person.photoCrop); };
+    if (cardImg) {
+      cardImg.onload = () => { cardImg.classList.add('loaded'); applyCropToImg(cardImg, person.photoCrop); };
+      // Started from the low-res thumb — preload the full-res Drive photo
+      // off-screen and swap once it's actually ready, so the card never
+      // regresses to a slower/broken image if Drive is having a bad moment.
+      if (person.thumbUrl && fullThumb && fullThumb !== thumb) {
+        const upgrade = new Image();
+        upgrade.onload = () => { cardImg.src = fullThumb; };
+        upgrade.src = fullThumb;
+      }
+    }
   }
   card.addEventListener('click', () => openStudentDetail(sk, idx));
   return card;

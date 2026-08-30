@@ -47,6 +47,18 @@ export async function kvList(prefix: string): Promise<{ keys: { name: string }[]
   return { keys };
 }
 
+// Every "give me every student's X for this tab" endpoint (goals,
+// interactions, notes, connections, photo crops) does this same
+// list-then-fetch-each dance. Shared here so the bootstrap route can call it
+// directly instead of five separate HTTP round trips back into itself.
+export async function kvGetMap<T = unknown>(prefix: string): Promise<Record<string, T | null>> {
+  const { keys } = await kvList(prefix);
+  const entries = await Promise.all(
+    keys.map(async ({ name }) => [name.slice(prefix.length), await kvGet<T>(name)] as const)
+  );
+  return Object.fromEntries(entries);
+}
+
 export async function trackMetric(type: string): Promise<void> {
   try {
     const today = new Date().toISOString().slice(0, 10);
