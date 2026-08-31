@@ -26,12 +26,27 @@ What you are writing:
 - big_idea: one sentence a student could repeat back. The single thing the night
   was about.
 - verse_ref: the memory verse reference alone, e.g. "1 Peter 5:7". Pick the verse
-  the notes lean on hardest. Reference only — no verse text, no translation.
+  the notes lean on hardest.
+- verse_text: the full text of that verse, ESV translation, from your own
+  knowledge of scripture. If the notes quote it directly, match their wording
+  instead of the ESV. Leave this an empty string only if you aren't confident
+  which passage the reference points to — never guess at wording.
 - recap: two or three sentences telling a student what was talked about, written
   to be read days later by someone who was in the room.
+- heads_up: one or two sentences flagging anything a parent should know going
+  in — a heavy topic, a personal disclosure, something raised that a parent
+  might want to follow up on at home. Empty string if nothing in the notes
+  calls for it.
+- starters: exactly three conversation-starter questions a parent could ask
+  their student about this week, grounded in the notes' actual content — not
+  generic "how was youth group" questions.
 - days: exactly three. Each is one sitting of about four minutes.
   - label: the day's title, a few words.
-  - passage_ref: reference only, e.g. "1 Peter 5:6-7". No passage text.
+  - passage_ref: reference only, e.g. "1 Peter 5:6-7".
+  - passage_text: the full text of that passage, ESV translation, from your
+    own knowledge of scripture. Same rule as verse_text: match the notes'
+    wording if they quote it, leave empty only if you aren't confident which
+    passage this is.
   - thought: one honest paragraph, 3-5 sentences, that says something true
     rather than something tidy. Write to a 15-year-old without writing down to
     one. No rhetorical questions here — the question field is the question.
@@ -187,9 +202,14 @@ function isWellFormed(draft: NotesDraft): boolean {
     str(draft.week_title) &&
     str(draft.big_idea) &&
     str(draft.verse_ref) &&
+    str(draft.verse_text) &&
     str(draft.recap) &&
+    str(draft.heads_up) &&
+    Array.isArray(draft.starters) &&
     Array.isArray(draft.days) &&
     draft.days.length === 3 &&
-    draft.days.every((d) => d && str(d.label) && str(d.passage_ref) && str(d.thought) && str(d.question))
+    draft.days.every(
+      (d) => d && str(d.label) && str(d.passage_ref) && str(d.passage_text) && str(d.thought) && str(d.question)
+    )
   );
 }

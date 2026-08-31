@@ -123,6 +123,7 @@ export default function NotesPaste() {
               {parsing
                 ? "Working through them…"
                 : "Paste your notes and the week comes back roughly filled in. Nothing gets saved or published until you say so."}
+              {parsing && <div className="admin-notes-progress" aria-hidden="true" />}
             </div>
           ) : (
             <>
@@ -139,8 +140,22 @@ export default function NotesPaste() {
                 {draft.verse_ref}
               </div>
               <div className="admin-outfield">
+                <div className="ol">Bible text</div>
+                {draft.verse_text ? truncate(draft.verse_text, 140) : "Not found — add it yourself"}
+              </div>
+              <div className="admin-outfield">
                 <div className="ol">Recap</div>
                 {truncate(draft.recap, 120)}
+              </div>
+              {draft.heads_up && (
+                <div className="admin-outfield">
+                  <div className="ol">Heads up</div>
+                  {draft.heads_up}
+                </div>
+              )}
+              <div className="admin-outfield">
+                <div className="ol">Parent starters</div>
+                {draft.starters.join(" / ")}
               </div>
               <div className="admin-outfield">
                 <div className="ol">Day prompts · {draft.days.length} drafted</div>

@@ -107,11 +107,15 @@ export async function duplicateLastWeek() {
 //
 // The parser's field names map onto the schema's here — week_title → title,
 // verse_ref → verse_reference, label → title, passage_ref →
-// passage_reference. Fields the notes can't supply (verse text, passage
-// text, series) are left blank for the leader to fill in rather than
-// guessed at.
+// passage_reference. verse_text/passage_text are the model's own recall of
+// the reference (ESV by default, unless the notes quote different wording)
+// rather than anything guaranteed to be in the notes — a leader reviews
+// every word before publishing. Translation is set directly rather than
+// asked of the model, since it isn't something extracted from the notes.
+// Only series is left blank for the leader to fill in.
 export async function createWeekFromDraft(draft: NotesDraft) {
   const supabase = await createClient();
+  const starters: [string, string, string] = [draft.starters[0] ?? "", draft.starters[1] ?? "", draft.starters[2] ?? ""];
 
   const { data: week, error } = await supabase
     .from("weeks")
@@ -120,7 +124,11 @@ export async function createWeekFromDraft(draft: NotesDraft) {
       title: draft.week_title,
       big_idea: draft.big_idea,
       verse_reference: draft.verse_ref,
+      verse_translation: "ESV",
+      verse_text: draft.verse_text,
       recap: draft.recap,
+      heads_up: draft.heads_up,
+      starters,
     })
     .select("id")
     .single();
@@ -133,6 +141,7 @@ export async function createWeekFromDraft(draft: NotesDraft) {
       ...BLANK_DAY,
       title: day.label,
       passage_reference: day.passage_ref,
+      passage_text: day.passage_text,
       thought: day.thought,
       question: day.question,
     }))
