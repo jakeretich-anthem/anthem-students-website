@@ -10,7 +10,7 @@ export async function GET() {
   const users = [];
   for (const key of list.keys) {
     const u = await kvGet<RosterUser>(key.name);
-    if (u) users.push({ name: u.name, email: u.email, role: u.role, status: u.status || null, createdAt: u.createdAt, leaderSince: u.leaderSince });
+    if (u) users.push({ name: u.name, email: u.email, role: u.role, status: u.status || null, createdAt: u.createdAt, leaderSince: u.leaderSince, photoUrl: u.photoUrl || null, photoCrop: u.photoCrop || null });
   }
   return NextResponse.json({ users });
 }

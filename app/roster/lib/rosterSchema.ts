@@ -10,7 +10,7 @@
 // Sheet columns (both tabs, identical):
 //   A Student · B Last connection date · C Connected This Quarter? ·
 //   D Connection Status · E Grade · F School · G Birthday · H (spacer) ·
-//   I Link to Photo · J NOTES · K ID (hidden)
+//   I Link to Photo · J NOTES · K ID
 //
 // Goals and primary goal are no longer in the sheet at all — they live in
 // roster_kv under `goals:{sk}:{id}`. See api/student/goals/route.ts.

@@ -822,7 +822,13 @@ function makeCard(person, idx, sk) {
       }
     }
   }
+  card.tabIndex = 0;
+  card.setAttribute('role', 'button');
+  card.setAttribute('aria-label', 'View ' + person.name);
   card.addEventListener('click', () => openStudentDetail(sk, idx));
+  card.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openStudentDetail(sk, idx); }
+  });
   return card;
 }
 
@@ -993,6 +999,114 @@ function todayISO() {
   const d = new Date();
   const pad = n => String(n).padStart(2,'0');
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+
+// ── DATE PICKER ───────────────────────────────────────────────
+// One shared popover (#dp-popover, in body.ts) reused by every .dp-input on
+// the page — same "single global panel, contextual pointer" shape as the
+// crop modal's cropCallback, rather than a picker instance per field.
+let dpActiveInput = null, dpViewYear = 0, dpViewMonth = 0;
+
+function openDatePicker(input) {
+  dpActiveInput = input;
+  let val = input.value;
+  // Fields that log "when did this happen" (hangout date, a fresh parent
+  // connection) default to today so the common case needs zero clicks.
+  // Fields that record a fact about the past (birthday) must never be
+  // silently backdated to today, so only inputs marked data-dp-default-today
+  // get this.
+  if (!val && input.dataset.dpDefaultToday !== undefined) {
+    val = todayISO();
+    input.value = val;
+  }
+  const base = val || todayISO();
+  const [y, m] = base.split('-').map(Number);
+  dpViewYear = y; dpViewMonth = m - 1;
+  renderDatePicker();
+  positionDatePicker(input);
+  document.getElementById('dp-popover').classList.add('open');
+}
+
+function closeDatePicker() {
+  const pop = document.getElementById('dp-popover');
+  if (pop) pop.classList.remove('open');
+  dpActiveInput = null;
+}
+
+function positionDatePicker(input) {
+  const pop = document.getElementById('dp-popover');
+  const r = input.getBoundingClientRect();
+  const popW = 272, popH = 336;
+  let top = r.bottom + 6, left = r.left;
+  // Flip above the input, or clamp to the viewport, so the popover never runs
+  // off-screen near the bottom/edge of a short phone or a scrolled modal.
+  if (top + popH > window.innerHeight - 12) top = r.top - popH - 6;
+  if (top < 12) top = 12;
+  if (left + popW > window.innerWidth - 12) left = window.innerWidth - popW - 12;
+  if (left < 12) left = 12;
+  pop.style.top = top + 'px';
+  pop.style.left = left + 'px';
+}
+
+const DP_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function renderDatePicker() {
+  const grid = document.getElementById('dp-grid');
+  const label = document.getElementById('dp-month-label');
+  if (!grid || !label) return;
+  const y = dpViewYear, m = dpViewMonth;
+  label.textContent = DP_MONTH_NAMES[m] + ' ' + y;
+
+  const selected = dpActiveInput ? dpActiveInput.value : '';
+  const maxAttr = dpActiveInput ? (dpActiveInput.dataset.dpMax || null) : null;
+  const today = todayISO();
+
+  const startDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const daysInPrevMonth = new Date(y, m, 0).getDate();
+
+  let cells = '';
+  for (let i = 0; i < startDow; i++) {
+    cells += '<span class="dp-day other-month" aria-hidden="true">' + (daysInPrevMonth - startDow + 1 + i) + '</span>';
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    const cls = ['dp-day']
+      .concat(iso === today ? ['today'] : [])
+      .concat(iso === selected ? ['selected'] : [])
+      .concat(maxAttr && iso > maxAttr ? ['disabled'] : [])
+      .join(' ');
+    cells += (maxAttr && iso > maxAttr)
+      ? '<span class="' + cls + '">' + d + '</span>'
+      : '<button type="button" class="' + cls + '" onclick="dpSelectDay(' + d + ')">' + d + '</button>';
+  }
+  const trailing = (7 - ((startDow + daysInMonth) % 7)) % 7;
+  for (let i = 1; i <= trailing; i++) {
+    cells += '<span class="dp-day other-month" aria-hidden="true">' + i + '</span>';
+  }
+  grid.innerHTML = cells;
+}
+
+function dpChangeMonth(delta) {
+  dpViewMonth += delta;
+  if (dpViewMonth < 0) { dpViewMonth = 11; dpViewYear--; }
+  if (dpViewMonth > 11) { dpViewMonth = 0; dpViewYear++; }
+  renderDatePicker();
+}
+
+function dpSelectDay(d) {
+  if (!dpActiveInput) return;
+  const iso = dpViewYear + '-' + String(dpViewMonth + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  dpActiveInput.value = iso;
+  dpActiveInput.dispatchEvent(new Event('change', { bubbles: true }));
+  closeDatePicker();
+}
+
+function dpSelectToday() {
+  const iso = todayISO();
+  dpViewYear = +iso.slice(0, 4);
+  dpViewMonth = +iso.slice(5, 7) - 1;
+  dpSelectDay(+iso.slice(8, 10));
 }
 
 function connectedLabel(person, onGlyph) {
@@ -1477,7 +1591,7 @@ async function renderStudentDetail(sk, index) {
           '<div id="connections-list"><div class="loader"><div class="loader-ring"></div></div></div>'+
           (canEdit
             ? '<div class="conn-add-row">'+
-                '<input class="conn-date-input" type="date" id="new-conn-date" max="'+todayISO()+'" aria-label="Connection date">'+
+                '<input class="conn-date-input dp-input" type="text" id="new-conn-date" data-dp-max="'+todayISO()+'" data-dp-default-today placeholder="Select date" readonly aria-label="Connection date">'+
                 '<input class="add-goal-input" id="new-conn-note" placeholder="What was it? (optional)">'+
                 '<button class="add-goal-btn" onclick="addConnection()" title="Add connection">+</button>'+
               '</div>'
@@ -1707,7 +1821,7 @@ function renderConnectionsList(connections, sk, index) {
     if (connEditingId === c.id) {
       return '<div class="conn-item editing">' +
         '<div class="conn-edit-fields">' +
-          '<input class="conn-date-input" type="date" id="conn-edit-date" value="' + dashEsc(c.date || '') + '" max="' + todayISO() + '" aria-label="Connection date">' +
+          '<input class="conn-date-input dp-input" type="text" id="conn-edit-date" value="' + dashEsc(c.date || '') + '" data-dp-max="' + todayISO() + '" placeholder="Select date" readonly aria-label="Connection date">' +
           '<input class="add-goal-input" id="conn-edit-note" placeholder="What was it? (optional)" value="' + dashEsc(c.note || '') + '">' +
         '</div>' +
         '<div class="int-actions note-actions-open">' +
@@ -2115,7 +2229,7 @@ async function loadActivityFeed() {
       const student=findStudent(item.studentName);
       const sThumb=student?driveThumb(student.photoUrl):null;
       const sg=GRADIENTS[0], lg=GRADIENTS[2];
-      return '<div class="act-card" onclick="navigateToStudent(\\''+item.studentName+'\\')">'+
+      return '<div class="act-card" tabindex="0" role="button" aria-label="View '+item.studentName+'" onclick="navigateToStudent(\\''+item.studentName+'\\')">'+
         '<div class="act-header">'+
           '<div class="act-avatars">'+
             '<div class="act-av"><div class="av-fallback" style="background:'+sg+'">'+initials(item.studentName)+'</div>'+
@@ -2134,6 +2248,9 @@ async function loadActivityFeed() {
     const cards=el.querySelectorAll('.act-card');
     items.forEach((item,i)=>{
       const card=cards[i]; if(!card) return;
+      card.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigateToStudent(item.studentName); }
+      });
       const img=card.querySelector('.act-av img'); if(!img) return;
       const student=findStudent(item.studentName);
       img.onload=()=>{ img.classList.add('loaded'); applyCropToImg(img, student&&student.photoCrop); };
@@ -2247,15 +2364,21 @@ async function loadAdminUsers() {
   const el=document.getElementById('admin-users-table');
   if (!users.length) { el.innerHTML='<div class="empty"><p>No users.</p></div>'; return; }
   const selfEmail=(currentUser?.email||'').toLowerCase();
-  el.innerHTML='<table class="user-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead><tbody>'+
-    users.map(u=>{
+  el.innerHTML='<table class="user-table"><thead><tr><th></th><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead><tbody>'+
+    users.map((u,i)=>{
       const isSelf=u.email.toLowerCase()===selfEmail;
       const isAdmin=u.role==='admin';
       const isLeader=u.role==='leader';
       const isPending=u.role==='pending';
       const leaderChecked=(isLeader||isAdmin)?'checked':'';
       const leaderDisabled=(isSelf||isAdmin)?'disabled':'';
-      return '<tr'+(isSelf?' style="background:var(--accent-glow)"':'')+'><td>'+u.name+(isSelf?' <span style="font-size:10px;color:var(--muted)">(you)</span>':'')+'</td>'+
+      const avatarHtml='<div class="admin-user-avatar" data-email="'+u.email+'" onclick="openAdminUserPhotoEditor(\\''+u.email+'\\','+(u.photoUrl?"'"+u.photoUrl+"'":'null')+')" title="Change photo">'+
+        (u.photoUrl
+          ? '<img src="'+(driveThumb(u.photoUrl)||u.photoUrl)+'" alt="" onerror="this.style.display=\\'none\\'">'
+          : '<div class="av-fallback" style="background:'+GRADIENTS[i % GRADIENTS.length]+'">'+initials(u.name)+'</div>')+
+        '<div class="admin-user-avatar-overlay">📷</div>'+
+      '</div>';
+      return '<tr'+(isSelf?' style="background:var(--accent-glow)"':'')+'><td class="avatar-cell">'+avatarHtml+'</td><td>'+u.name+(isSelf?' <span style="font-size:10px;color:var(--muted)">(you)</span>':'')+'</td>'+
         '<td style="color:var(--muted)">'+u.email+'</td>'+
         '<td><span class="role-badge '+u.role+'">'+u.role+'</span></td>'+
         '<td style="color:var(--muted);font-family:\\'JetBrains Mono\\',monospace;font-size:11px">'+(u.createdAt?new Date(u.createdAt).toLocaleDateString():'—')+'</td>'+
@@ -2267,6 +2390,12 @@ async function loadAdminUsers() {
           (!isSelf&&!isPending?'<button class="role-btn revoke" onclick="updateUser(\\''+u.email+'\\',\\'pending\\')">Revoke</button>':'')+
         '</div></td></tr>';
     }).join('')+'</tbody></table>';
+  el.querySelectorAll('.admin-user-avatar').forEach(wrap=>{
+    const img=wrap.querySelector('img'); if(!img) return;
+    const u=users.find(x=>x.email===wrap.dataset.email);
+    if(!u) return;
+    img.onload=()=>{ img.classList.add('loaded'); applyCropToImg(img, u.photoCrop); };
+  });
 }
 async function toggleLeader(email, isLeader) {
   await updateUser(email, isLeader ? 'leader' : 'approved');
@@ -2992,6 +3121,39 @@ function recropStudentPhoto(sk, index) {
   cropReplaceInputId='shared-photo-input';
   cropCallback=studentDetailCropCallback(sk,index);
   loadExistingCropImage(person.photoUrl);
+}
+
+// Lets an admin change another leader's photo from Adminland's Users tab —
+// same shared crop modal as everywhere else, just a fourth callback plugged
+// into it. url stays null when there's no new file (a pure recrop); the
+// server route treats null as "leave photoUrl alone."
+function adminUserPhotoCropCallback(email) {
+  return async (crop, file) => {
+    let url = null;
+    if (file) {
+      const data = await uploadOriginalPhoto(file, 'leader');
+      if (!data.url) { showToast(data.error || 'Upload failed', 'error'); return; }
+      url = data.url;
+    }
+    const res = await fetch('/roster/api/admin/users/photo', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email, photoUrl: url, photoCrop: crop })
+    });
+    if (!res.ok) { showToast('Failed to save photo', 'error'); return; }
+    showToast('✓ Photo updated', 'ok');
+    loadAdminUsers();
+  };
+}
+
+function openAdminUserPhotoEditor(email, existingUrl) {
+  cropCallback = adminUserPhotoCropCallback(email);
+  if (existingUrl) {
+    cropReplaceInputId = 'shared-photo-input';
+    loadExistingCropImage(existingUrl);
+  } else {
+    cropReplaceInputId = null;
+    document.getElementById('shared-photo-input').click();
+  }
 }
 
 // Applies stored crop metadata to a displayed <img> by explicit width/height/
@@ -3799,10 +3961,36 @@ document.addEventListener('DOMContentLoaded', () => {
   // Escape key to close topmost modal
   document.addEventListener('keydown', e => {
     if(e.key==='Escape'){
+      const dp=document.getElementById('dp-popover');
+      if(dp && dp.classList.contains('open')){ closeDatePicker(); return; }
       const open=document.querySelector('.modal-overlay.open');
       if(open) closeModal(open.id);
     }
   });
+
+  // Date picker: click/focus a .dp-input to open it, Enter/Space too since
+  // it's readonly and gives the native click nothing to fire from on
+  // keyboard-only navigation. Click-away and window resize close it; a
+  // scroll closes it too (capture:true so it also catches scrolling inside
+  // a modal's own overflow, which never bubbles) rather than trying to keep
+  // a fixed-position popover glued to an input that just moved.
+  document.addEventListener('click', e => {
+    const inp = e.target.closest && e.target.closest('.dp-input');
+    if (inp) { openDatePicker(inp); return; }
+    const pop = document.getElementById('dp-popover');
+    if (pop && pop.classList.contains('open') && !pop.contains(e.target)) closeDatePicker();
+  });
+  document.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('dp-input')) {
+      e.preventDefault();
+      openDatePicker(e.target);
+    }
+  });
+  document.addEventListener('scroll', () => {
+    const pop = document.getElementById('dp-popover');
+    if (pop && pop.classList.contains('open')) closeDatePicker();
+  }, true);
+  window.addEventListener('resize', closeDatePicker);
 
   // A password-reset email lands here as /roster?resetToken=… . Take the token
   // into memory and strip it from the address bar before anything else runs, so

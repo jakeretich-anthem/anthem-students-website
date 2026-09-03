@@ -720,7 +720,7 @@ export const HTML_BODY = `
     <div class="field"><label>Full Name *</label><input type="text" id="ef-name" placeholder="First Last"></div>
     <div class="field-row">
       <div class="field"><label>Grade</label><input type="text" id="ef-grade" placeholder="9"></div>
-      <div class="field"><label>Birthday</label><input type="date" id="ef-birthday"></div>
+      <div class="field"><label>Birthday</label><input type="text" class="dp-input" id="ef-birthday" placeholder="Select date" readonly></div>
     </div>
     <div class="field-row">
       <div class="field"><label>School</label><input type="text" id="ef-school" placeholder="School name"></div>
@@ -825,7 +825,7 @@ export const HTML_BODY = `
     <div class="modal-title">Log Hangout</div>
     <div class="modal-sub" id="int-modal-sub">with Student</div>
     <div class="field"><label>Leader Name</label><input type="text" id="int-leader" placeholder="Your name"></div>
-    <div class="field"><label>Date</label><input type="date" id="int-date"></div>
+    <div class="field"><label>Date</label><input type="text" class="dp-input" id="int-date" data-dp-default-today placeholder="Select date" readonly></div>
     <div class="field"><label>What happened? Any key moments or prayer requests?</label><textarea id="int-summary" rows="5" placeholder="e.g. We grabbed coffee and she opened up about some struggles at home. She's been thinking about what it means to grow in her faith. Prayed together at the end."></textarea></div>
     <div class="modal-actions">
       <button class="btn-save" onclick="saveInteraction()">Log It ✓</button>
@@ -839,7 +839,7 @@ export const HTML_BODY = `
   <div class="modal">
     <button class="modal-close" onclick="closeModal('edit-interaction-modal')">✕</button>
     <div class="modal-title">Edit Hangout Note</div>
-    <div class="field"><label>Date</label><input type="date" id="edit-int-date"></div>
+    <div class="field"><label>Date</label><input type="text" class="dp-input" id="edit-int-date" placeholder="Select date" readonly></div>
     <div class="field"><label>What happened? Any key moments or prayer requests?</label><textarea id="edit-int-summary" rows="5"></textarea></div>
     <div class="modal-actions">
       <button class="btn-save" onclick="saveEditedInteraction()">Save Changes</button>
@@ -899,6 +899,18 @@ export const HTML_BODY = `
 
 <!-- Hidden file input for photo picking -->
 <input type="file" id="shared-photo-input" accept="image/*" style="display:none" onchange="onSharedPhotoSelected(this)">
+
+<!-- DATE PICKER (shared popover — one instance, repositioned to whichever .dp-input was clicked) -->
+<div class="dp-popover" id="dp-popover">
+  <div class="dp-header">
+    <button type="button" class="dp-nav" onclick="dpChangeMonth(-1)" aria-label="Previous month">‹</button>
+    <div class="dp-month-label" id="dp-month-label"></div>
+    <button type="button" class="dp-nav" onclick="dpChangeMonth(1)" aria-label="Next month">›</button>
+  </div>
+  <div class="dp-weekdays"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+  <div class="dp-grid" id="dp-grid"></div>
+  <button type="button" class="dp-today-btn" onclick="dpSelectToday()">Today</button>
+</div>
 
 <!-- TOAST -->
 <div id="toast" class="toast"></div>
