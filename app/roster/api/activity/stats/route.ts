@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { kvGet, kvList } from "../../../lib/kv";
 import { requirePermission } from "../../../lib/auth";
 
-type ActivityItem = { leader?: string; studentName?: string; sk?: string; date?: string; createdAt: string };
+type ActivityItem = { type?: string; leader?: string; studentName?: string; sk?: string; date?: string; createdAt: string };
 
 // Activity records carry a 90-day TTL (see api/student/interactions), so every
 // time-based number here describes a rolling 90-day window, not all time. The
@@ -44,10 +44,18 @@ export async function GET() {
   let last7 = 0;
   let last30 = 0;
   let earliest: number | null = null;
+  let totalHangouts = 0;
 
   for (const key of list.keys) {
     const item = await kvGet<ActivityItem>(key.name);
     if (!item) continue;
+    // This dashboard is specifically about hangouts — the activity: prefix
+    // now also carries connections, notes, and roster edits (see the Activity
+    // tab), so skip everything but hangouts here. A missing `type` is a
+    // pre-existing record from before this field existed, and those are all
+    // hangouts (the only writer at the time).
+    if (item.type && item.type !== "hangout") continue;
+    totalHangouts++;
     if (item.leader) leaderCounts[item.leader] = (leaderCounts[item.leader] || 0) + 1;
     if (item.studentName) studentCounts[item.studentName] = (studentCounts[item.studentName] || 0) + 1;
     if (item.sk === "hs" || item.sk === "ms") bySk[item.sk]++;
@@ -92,7 +100,7 @@ export async function GET() {
   const busiest = Object.entries(perDay).sort((a, b) => b[1] - a[1])[0];
 
   return NextResponse.json({
-    totalInteractions: list.keys.length,
+    totalInteractions: totalHangouts,
     uniqueLeaders: Object.keys(leaderCounts).length,
     uniqueStudents: Object.keys(studentCounts).length,
     thisMonth,

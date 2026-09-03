@@ -1500,7 +1500,7 @@ async function doConfirmDeleteStudent() {
   const {sk,index}=editState;
   const name=DATA[sk].students[index].name;
   const person=DATA[sk].students.splice(index,1)[0];
-  const params=new URLSearchParams({action:'delete',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex})});
+  const params=new URLSearchParams({action:'delete',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,studentName:name})});
   await fetch('/roster/api/sheet/write', writeInit(params));
   closeModal('confirm-student-delete-modal');
   renderAll(); closeEditModal(); showToast('Removed '+name,'ok');
@@ -1614,6 +1614,10 @@ async function renderStudentDetail(sk, index) {
   const goals=person.goals||[];
   renderGoalsList(goals,sk,index);
 
+  // Resolve leader photos for the notes/hangout lists below — usually already
+  // warm from the boot-time call, so this is a no-op await most of the time.
+  await loadLeaderDirectory();
+
   // Load notes. null tells renderNotesList the log didn't load, which is not
   // the same as it being empty — the sheet's own note still shows either way.
   try {
@@ -1673,15 +1677,22 @@ function renderInteractionsList(interactions, sk, index) {
           '<button class="int-action-btn danger" data-id="'+int.id+'" data-sk="'+sk+'" data-idx="'+index+'" onclick="deleteInteractionNote(this.dataset.id,this.dataset.sk,+this.dataset.idx)">Delete</button>'+
         '</div>'
       : '';
+    const lp=findLeaderByEmail(int.leaderEmail);
     return '<div class="int-item">'+
       '<div class="int-header">'+
-        '<div class="int-av">'+initials(int.leader)+'</div>'+
+        '<div class="int-av">'+initials(int.leader)+(lp&&lp.photoUrl?'<img src="'+(driveThumb(lp.photoUrl)||lp.photoUrl)+'" alt="" onerror="this.style.display=\\'none\\'">':'')+'</div>'+
         '<div><div class="int-who">'+int.leader+editedTag+'</div><div class="int-when">'+formatDate(int.date)+' · '+timeAgo(int.createdAt)+'</div></div>'+
       '</div>'+
       '<div class="int-body">'+int.summary+'</div>'+
       actBtns+
     '</div>';
   }).join('');
+  const reversedInts=[...interactions].reverse();
+  el.querySelectorAll('.int-item').forEach((row,i)=>{
+    const img=row.querySelector('.int-av img'); if(!img) return;
+    const lp=findLeaderByEmail(reversedInts[i]&&reversedInts[i].leaderEmail);
+    img.onload=()=>{ img.classList.add('loaded'); applyCropToImg(img, lp&&lp.photoCrop); };
+  });
 }
 
 // ── NOTES ─────────────────────────────────────────────────────
@@ -1734,9 +1745,10 @@ function renderNotesList(notes, sk, index) {
     // the API then refuses. The server check is the real one either way.
     const canManage = canEdit && n.id && currentUser && (n.leaderEmail===currentUser.email || currentUser.role==='admin');
     const editedTag = n.updatedAt ? ' <span class="int-edited">edited</span>' : '';
+    const lp = findLeaderByEmail(n.leaderEmail);
     const head =
       '<div class="int-header">'+
-        '<div class="int-av">'+initials(n.leader||'?')+'</div>'+
+        '<div class="int-av">'+initials(n.leader||'?')+(lp&&lp.photoUrl?'<img src="'+(driveThumb(lp.photoUrl)||lp.photoUrl)+'" alt="" onerror="this.style.display=\\'none\\'">':'')+'</div>'+
         '<div><div class="int-who">'+dashEsc(n.leader||'Someone')+editedTag+'</div>'+
         '<div class="int-when">'+(timeAgo(n.createdAt)||formatDate(n.createdAt))+'</div></div>'+
       '</div>';
@@ -1766,6 +1778,12 @@ function renderNotesList(notes, sk, index) {
       actBtns+
     '</div>';
   }).join('');
+  const reversedNotes=[...notes].reverse();
+  el.querySelectorAll('.note-item').forEach((row,i)=>{
+    const img=row.querySelector('.int-av img'); if(!img) return;
+    const lp=findLeaderByEmail(reversedNotes[i]&&reversedNotes[i].leaderEmail);
+    img.onload=()=>{ img.classList.add('loaded'); applyCropToImg(img, lp&&lp.photoCrop); };
+  });
 }
 
 // ── PARENT CONNECTION LOG ─────────────────────────────────────
@@ -1905,7 +1923,7 @@ async function addConnection() {
   try {
     const res = await fetch('/roster/api/student/connections', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({sk, id:person.id, date, note}),
+      body: JSON.stringify({sk, id:person.id, date, note, studentName:person.name}),
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error||'Could not log the connection');
@@ -2003,7 +2021,7 @@ async function addNote() {
   try {
     const res=await fetch('/roster/api/student/notes',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({sk,id:person.id,text}),
+      body:JSON.stringify({sk,id:person.id,text,studentName:person.name}),
     });
     const data=await res.json();
     if (!data.success) throw new Error(data.error||'Could not save the note');
@@ -2217,43 +2235,83 @@ async function confirmDeleteInteraction() {
 }
 
 // ── ACTIVITY FEED ─────────────────────────────────────────────
+// Every kind of "did something" event shares the same activity: log now (see
+// api/student/interactions, connections, notes, and api/sheet/write) — a
+// hangout, a parent connection, a note, or a student added/edited/removed.
+// Older records from before the type field existed have none, and those are
+// all hangouts (the only writer at the time), so a missing type defaults to it.
+function activityCopy(item, leaderName) {
+  const student='<span>'+item.studentName+'</span>';
+  switch (item.type) {
+    case 'connection': return { names: leaderName+' connected with '+student+'’s family', summary: item.summary || 'No note added.' };
+    case 'note': return { names: leaderName+' added a note about '+student, summary: item.summary || '' };
+    case 'student_added': return { names: leaderName+' added '+student+' to the roster', summary: null };
+    case 'student_updated': return { names: leaderName+' updated '+student+'’s details', summary: null };
+    case 'student_removed': return { names: leaderName+' removed '+student+' from the roster', summary: null };
+    default: return { names: student+' × '+leaderName, summary: item.summary || '' }; // hangout, or a legacy untyped record
+  }
+}
+
 async function loadActivityFeed() {
   const el=document.getElementById('activity-feed');
   el.innerHTML='<div class="loader"><div class="loader-ring"></div></div>';
   try {
+    await loadLeaderDirectory();
     const res=await fetch('/roster/api/activity/recent');
     const data=await res.json();
     const items=data.items||[];
-    if (!items.length) { el.innerHTML='<div class="empty"><div class="empty-icon">🌱</div><p>No activity yet. Log some hangouts!</p></div>'; return; }
+    if (!items.length) { el.innerHTML='<div class="empty"><div class="empty-icon">🌱</div><p>No activity yet.</p></div>'; return; }
     el.innerHTML=items.map(item=>{
       const student=findStudent(item.studentName);
+      // A removed student has nothing to navigate to — don't offer a click
+      // that silently does nothing.
+      const canNavigate=!!student;
       const sThumb=student?driveThumb(student.photoUrl):null;
+      const leaderName=item.leader||'Someone';
+      const lp=findLeaderByEmail(item.leaderEmail);
+      const leaderThumb=lp&&lp.photoUrl?(driveThumb(lp.photoUrl)||lp.photoUrl):null;
       const sg=GRADIENTS[0], lg=GRADIENTS[2];
-      return '<div class="act-card" tabindex="0" role="button" aria-label="View '+item.studentName+'" onclick="navigateToStudent(\\''+item.studentName+'\\')">'+
+      const {names, summary}=activityCopy(item, leaderName);
+      const clickAttrs=canNavigate
+        ? ' tabindex="0" role="button" aria-label="View '+item.studentName+'" onclick="navigateToStudent(\\''+item.studentName+'\\')"'
+        : '';
+      return '<div class="act-card'+(canNavigate?'':' act-card-static')+'"'+clickAttrs+'>'+
         '<div class="act-header">'+
           '<div class="act-avatars">'+
             '<div class="act-av"><div class="av-fallback" style="background:'+sg+'">'+initials(item.studentName)+'</div>'+
             (sThumb?'<img src="'+sThumb+'" onerror="this.style.display=\\'none\\'">':'')+
             '</div>'+
-            '<div class="act-av"><div class="av-fallback" style="background:'+lg+'">'+initials(item.leader)+'</div></div>'+
+            '<div class="act-av"><div class="av-fallback" style="background:'+lg+'">'+initials(leaderName)+'</div>'+
+            (leaderThumb?'<img src="'+leaderThumb+'" onerror="this.style.display=\\'none\\'">':'')+
+            '</div>'+
           '</div>'+
           '<div class="act-info">'+
-            '<div class="act-names"><span>'+item.studentName+'</span> × '+item.leader+'</div>'+
-            '<div class="act-time">'+formatDate(item.date)+' · '+timeAgo(item.createdAt)+'</div>'+
+            '<div class="act-names">'+names+'</div>'+
+            '<div class="act-time">'+(item.date?formatDate(item.date)+' · ':'')+timeAgo(item.createdAt)+'</div>'+
           '</div>'+
         '</div>'+
-        '<div class="act-summary">'+item.summary.slice(0,200)+(item.summary.length>200?'…':'')+'</div>'+
+        (summary!==null?'<div class="act-summary">'+summary.slice(0,200)+(summary.length>200?'…':'')+'</div>':'')+
       '</div>';
     }).join('');
     const cards=el.querySelectorAll('.act-card');
     items.forEach((item,i)=>{
       const card=cards[i]; if(!card) return;
-      card.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigateToStudent(item.studentName); }
-      });
-      const img=card.querySelector('.act-av img'); if(!img) return;
-      const student=findStudent(item.studentName);
-      img.onload=()=>{ img.classList.add('loaded'); applyCropToImg(img, student&&student.photoCrop); };
+      if (card.hasAttribute('tabindex')) {
+        card.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigateToStudent(item.studentName); }
+        });
+      }
+      const avatars=card.querySelectorAll('.act-av');
+      const studentImg=avatars[0]&&avatars[0].querySelector('img');
+      if (studentImg) {
+        const student=findStudent(item.studentName);
+        studentImg.onload=()=>{ studentImg.classList.add('loaded'); applyCropToImg(studentImg, student&&student.photoCrop); };
+      }
+      const leaderImg=avatars[1]&&avatars[1].querySelector('img');
+      if (leaderImg) {
+        const lp=findLeaderByEmail(item.leaderEmail);
+        leaderImg.onload=()=>{ leaderImg.classList.add('loaded'); applyCropToImg(leaderImg, lp&&lp.photoCrop); };
+      }
     });
   } catch(e) { el.innerHTML='<div class="empty"><p>Could not load activity.</p></div>'; }
 }
@@ -3336,6 +3394,28 @@ async function savePhotoCrop(sk, id, crop) {
     body: JSON.stringify({sk, id, ...crop})});
 }
 
+// ── LEADER DIRECTORY (name/photo lookup by email) ──────────────
+// Backs the leader avatar shown next to a logged hangout, a note, and an
+// activity-feed item — those records store leaderEmail, this resolves it to
+// a face. One shared in-flight promise so concurrent callers (student detail
+// loading notes+connections+interactions at once) share a single request.
+let leaderDirectory = [];
+let leaderDirectoryPromise = null;
+function loadLeaderDirectory() {
+  if (!leaderDirectoryPromise) {
+    leaderDirectoryPromise = fetch('/roster/api/leaders')
+      .then(r => r.json())
+      .then(d => { leaderDirectory = d.leaders || []; return leaderDirectory; })
+      .catch(() => { leaderDirectory = []; return leaderDirectory; });
+  }
+  return leaderDirectoryPromise;
+}
+function findLeaderByEmail(email) {
+  if (!email) return null;
+  const e = String(email).toLowerCase();
+  return leaderDirectory.find(l => (l.email || '').toLowerCase() === e) || null;
+}
+
 // ── ORG SETTINGS (public branding) ────────────────────────────
 async function loadOrgSettings() {
   try {
@@ -3925,6 +4005,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load org settings for branding (before gate)
   loadOrgSettings();
+  loadLeaderDirectory();
 
   // Swipe back
   initSwipeBack();

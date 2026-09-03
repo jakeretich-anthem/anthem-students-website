@@ -83,6 +83,16 @@ export async function POST(request: Request) {
   existing.push(note);
   await kvPut(kvKey, existing);
 
+  // Same flat, timestamp-keyed log the hangout feed writes to (see
+  // api/student/interactions) — the Activity tab reads across every type.
+  const studentName = typeof body.studentName === "string" ? body.studentName : "";
+  const actKey = `activity:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
+  await kvPut(
+    actKey,
+    { type: "note", leader: note.leader, leaderEmail: note.leaderEmail, summary: note.text, studentName, sk, id, createdAt: note.createdAt },
+    90 * 24 * 60 * 60
+  );
+
   return NextResponse.json({ success: true, note });
 }
 

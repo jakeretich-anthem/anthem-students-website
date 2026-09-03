@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   await kvPut(kvKey, existing);
 
   const actKey = `activity:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
-  await kvPut(actKey, { ...interaction, studentName: studentName || "", sk, id, rowIndex }, 90 * 24 * 60 * 60);
+  await kvPut(actKey, { ...interaction, studentName: studentName || "", sk, id, rowIndex, type: "hangout" }, 90 * 24 * 60 * 60);
 
   const scriptUrl = process.env.GOOGLE_SCRIPT_URL;
   if (scriptUrl && rowIndex !== undefined) {

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
-import { requirePermission } from "../../../lib/auth";
+import { requirePermission, type RosterUser } from "../../../lib/auth";
 import { supabaseAdmin } from "../../../lib/supabaseAdmin";
+import { kvPut } from "../../../lib/kv";
 
 // Every action here mutates the sheet, so this is POST-only. It used to be a
 // GET that forwarded its query string to the Apps Script untouched, which made
@@ -84,6 +85,34 @@ async function patchCache(action: string, sk: string, payload: Record<string, un
   }
 }
 
+// Feeds the same flat, timestamp-keyed log the hangout/connection/note writes
+// use (see api/student/interactions) — the Activity tab reads across every
+// type. Best-effort: a failure here must never surface as a failure of the
+// actual sheet write, same reasoning as patchCache() above.
+async function logActivity(action: string, sk: string, payload: Record<string, unknown>, actor: RosterUser) {
+  let type: string;
+  let studentName = "";
+  if (action === "add") {
+    type = "student_added";
+    studentName = String((payload.person as Record<string, unknown> | undefined)?.name || "");
+  } else if (action === "update") {
+    type = "student_updated";
+    const fields = (payload.fields as Record<string, unknown> | undefined) || {};
+    studentName = String(fields.name || payload.studentName || "");
+  } else {
+    type = "student_removed";
+    studentName = String(payload.studentName || "");
+  }
+  if (!studentName) return;
+
+  const actKey = `activity:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
+  await kvPut(
+    actKey,
+    { type, studentName, sk, id: payload.id, leader: actor.name || "Someone", leaderEmail: actor.email || undefined, createdAt: new Date().toISOString() },
+    90 * 24 * 60 * 60
+  );
+}
+
 export async function POST(request: Request) {
   const perm = await requirePermission("roster", "edit");
   if (!perm.ok) return NextResponse.json({ error: perm.error }, { status: perm.status });
@@ -116,6 +145,7 @@ export async function POST(request: Request) {
       const result = JSON.parse(text) as Record<string, unknown>;
       if (!result.error && typeof payload.sheet === "string") {
         await patchCache(action, payload.sheet, payload, result);
+        await logActivity(action, payload.sheet, payload, perm.user);
       }
     } catch (e) {
       // Best-effort — the periodic sync (lib/rosterSync.ts) reconciles any

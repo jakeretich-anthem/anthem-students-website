@@ -745,7 +745,9 @@ header { padding: 44px 0 24px; text-align: center; }
 .int-item { padding: 12px 0; border-bottom: 1px solid var(--border); animation: fadeUp .3s var(--ease); }
 .int-item:last-child { border-bottom: none; }
 .int-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-.int-av { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-family: 'Bebas Neue', sans-serif; font-size: 12px; color: #000; flex-shrink: 0; }
+.int-av { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-family: 'Bebas Neue', sans-serif; font-size: 12px; color: #000; flex-shrink: 0; position: relative; overflow: hidden; }
+.int-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top center; opacity: 0; transition: opacity .3s; }
+.int-av img.loaded { opacity: 1; }
 .int-who { font-size: 13px; font-weight: 600; }
 .int-when { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
 .int-body { font-size: 13px; color: var(--text2); line-height: 1.55; padding-left: 40px; }
@@ -789,6 +791,10 @@ header { padding: 44px 0 24px; text-align: center; }
 .act-card:hover { border-color: var(--accent-border); transform: translateY(-2px); }
 .act-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .act-card:active { transform: translateY(-1px) scale(.985); transition-duration: .1s; }
+/* A removed student has nothing to navigate to — same card, no click affordance. */
+.act-card.act-card-static { cursor: default; }
+.act-card.act-card-static:hover { border-color: var(--border); transform: none; }
+.act-card.act-card-static:active { transform: none; }
 .act-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .act-avatars { display: flex; }
 .act-av { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--bg); margin-right: -8px; position: relative; overflow: hidden; flex-shrink: 0; }
