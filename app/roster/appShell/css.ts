@@ -1517,4 +1517,128 @@ span.dp-day.disabled { color: var(--muted); opacity: .3; cursor: not-allowed; }
 @media (max-width: 400px) {
   .dp-popover { width: calc(100vw - 24px); max-width: 272px; }
 }
+/* ── MENTORS ───────────────────────────────────────────────── */
+/* Leader avatar used in pills, the picker and Adminland. Same fade-in as the
+   card avatar so a slow Drive photo never flashes a broken image. */
+.m-av { position: relative; display: inline-flex; flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; overflow: hidden; }
+.m-av .av-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color: #000; font-family: 'Inter', sans-serif; }
+.m-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top center; opacity: 0; transition: opacity .3s; }
+.m-av img.loaded { opacity: 1; }
+.m-av.mp-plus { align-items: center; justify-content: center; background: var(--surface3); color: var(--muted); font-size: 13px; }
+
+.mentor-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 8px; min-width: 0; }
+.mentor-row:empty { display: none; }
+.mentor-pill {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0;
+  padding: 2px 9px 2px 2px; border-radius: 20px; line-height: 1.5;
+  background: var(--accent-glow); border: 1px solid var(--accent-border); color: var(--text);
+  font-size: 11px; font-weight: 500; font-family: 'Inter', sans-serif;
+}
+button.mentor-pill { cursor: pointer; transition: filter .15s var(--ease), border-color .15s; }
+button.mentor-pill:hover { filter: brightness(1.15); }
+button.mentor-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mentor-pill-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mentor-pill.secondary { background: transparent; border-color: var(--border2); color: var(--text2); font-size: 10px; }
+.mentor-pill.secondary .m-av { width: 15px; height: 15px; }
+.mentor-pill.empty { padding: 3px 10px; background: transparent; border: 1px dashed var(--border2); color: var(--muted); font-size: 10px; }
+.mentor-pill.empty:hover { border-color: var(--accent-border); color: var(--accent); filter: none; }
+
+/* Picker — anchored popover on desktop, bottom sheet on phones. */
+.mp-popover {
+  position: fixed; z-index: 400; width: 300px;
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: var(--radius); padding: 12px; box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column; gap: 10px;
+  opacity: 0; transform: translateY(-6px) scale(.98); pointer-events: none; visibility: hidden;
+  transition: opacity .18s var(--ease), transform .18s var(--ease), visibility 0s linear .18s;
+}
+.mp-popover.open {
+  opacity: 1; transform: none; pointer-events: all; visibility: visible;
+  transition: opacity .18s var(--ease), transform .18s var(--ease), visibility 0s;
+}
+.mp-head { display: flex; align-items: center; gap: 8px; }
+.mp-title { flex: 1; min-width: 0; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-close { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--border2); background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; }
+.mp-close:hover { color: var(--text); background: var(--surface3); }
+.mp-slots { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border2); border-radius: 30px; padding: 3px; }
+.mp-slot { flex: 1; border: none; background: transparent; color: var(--text2); font-size: 12px; padding: 6px; border-radius: 30px; cursor: pointer; font-family: 'Inter', sans-serif; }
+.mp-slot.active { background: var(--accent); color: #000; font-weight: 600; }
+.mp-search {
+  width: 100%; background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius-sm);
+  padding: 9px 11px; color: var(--text); font-size: 14px; outline: none; font-family: 'Inter', sans-serif;
+}
+.mp-search:focus { border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-glow); }
+.mp-list { display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; overscroll-behavior: contain; }
+.mp-option {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  padding: 7px 8px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text); font-size: 13px; cursor: pointer; font-family: 'Inter', sans-serif;
+}
+.mp-option:hover, .mp-option:focus-visible { background: var(--surface3); outline: none; }
+.mp-option.current { border-color: var(--accent-border); background: var(--accent-glow); }
+.mp-option .m-av { width: 26px; height: 26px; }
+.mp-option .m-av .av-fallback { font-size: 10px; }
+.mp-opt-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-tag { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--border2); border-radius: 20px; padding: 1px 6px; }
+.mp-opt-count { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); min-width: 18px; text-align: right; }
+.mp-empty { color: var(--muted); font-size: 12px; padding: 10px 4px; }
+.mp-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.mp-actions:empty { display: none; }
+.mp-act { flex: 1; background: transparent; border: 1px solid var(--border2); color: var(--text2); font-size: 11px; padding: 7px 10px; border-radius: 30px; cursor: pointer; font-family: 'Inter', sans-serif; white-space: nowrap; }
+.mp-act:hover { color: var(--text); border-color: var(--accent-border); }
+.mp-act.danger { color: var(--not-connected); border-color: rgba(248,113,113,.3); }
+.mp-act.danger:hover { background: rgba(248,113,113,.08); }
+@media (max-width: 680px) {
+  .mp-popover {
+    left: 0 !important; right: 0; top: auto !important; bottom: 0; width: auto;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    transform: translateY(24px); z-index: 450;
+  }
+  .mp-list { max-height: 45vh; }
+}
+
+/* Bulk select */
+.section-header .add-btn + .add-btn { margin-left: 0; }
+.card-check {
+  position: absolute; top: 10px; left: 10px; width: 22px; height: 22px; border-radius: 50%;
+  border: 1.5px solid var(--border2); background: var(--surface); color: transparent;
+  display: none; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;
+}
+body.select-mode .card-check { display: flex; }
+body.select-mode .card-edit-btn { display: none; }
+.card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.card.selected .card-check { background: var(--accent); border-color: var(--accent); color: #000; }
+.bulk-bar {
+  position: fixed; left: 50%; bottom: 20px; z-index: 300;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+  max-width: calc(100vw - 32px); padding: 8px 8px 8px 16px; border-radius: 30px;
+  background: var(--surface2); border: 1px solid var(--accent-border); box-shadow: var(--shadow-lg);
+  opacity: 0; visibility: hidden; transform: translate(-50%, 16px);
+  transition: opacity .2s var(--ease), transform .2s var(--ease), visibility 0s linear .2s;
+}
+.bulk-bar.open { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition: opacity .2s var(--ease), transform .2s var(--ease), visibility 0s; }
+.bulk-count { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text2); margin-right: 4px; white-space: nowrap; }
+.bulk-btn { background: transparent; border: 1px solid var(--border2); color: var(--text2); font-size: 12px; padding: 7px 13px; border-radius: 30px; cursor: pointer; font-family: 'Inter', sans-serif; white-space: nowrap; }
+.bulk-btn:hover { color: var(--text); border-color: var(--accent-border); }
+.bulk-btn.primary { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
+.bulk-btn:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 680px) {
+  .bulk-bar { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); padding-left: 12px; }
+}
+
+/* My students toggle */
+.my-students-btn.active { border-color: var(--accent-border); color: var(--accent); background: var(--accent-glow); }
+
+/* Adminland → Mentors */
+.am-kpis { margin-bottom: 18px; }
+.am-table .am-av { width: 30px; height: 30px; }
+.am-table .am-av .av-fallback { font-size: 11px; }
+.am-name { font-weight: 600; }
+.am-tag { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+.am-num { font-family: 'JetBrains Mono', monospace; font-size: 12px; white-space: nowrap; }
+.am-unassigned td { background: var(--accent-glow); }
+.am-idle td { opacity: .55; }
+.mr-slots { display: flex; gap: 18px; margin: 4px 0 18px; font-size: 13px; color: var(--text2); }
+.mr-slots label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 `;

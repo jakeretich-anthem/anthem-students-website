@@ -16,6 +16,8 @@ type Interaction = { id: string; [key: string]: unknown };
 type Note = { id: string; [key: string]: unknown };
 type Connection = { id: string; date: string; [key: string]: unknown };
 type PhotoCrop = { zoom: number; offX: number; offY: number };
+type Mentor = { email: string | null; name: string };
+type StudentMentors = { primary: Mentor | null; secondary: Mentor | null };
 
 function latestDate(list: Connection[]): string {
   return list.reduce((newest, c) => (c.date && c.date > newest ? c.date : newest), "");
@@ -31,11 +33,12 @@ export async function GET() {
   if (!canSeeRoster) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const canSeeNotes = await hasPermission(user, "hangoutNotes", "view");
 
-  const [goals, noteCounts, connections, photoCrops, interactionCounts] = await Promise.all([
+  const [goals, noteCounts, connections, photoCrops, mentors, interactionCounts] = await Promise.all([
     Promise.all(SKS.map(async (sk) => [sk, await kvGetMap<StudentGoals>(`goals:${sk}:`)] as const)),
     Promise.all(SKS.map(async (sk) => [sk, await kvGetMap<Note[]>(`notes:${sk}:`)] as const)),
     Promise.all(SKS.map(async (sk) => [sk, await kvGetMap<Connection[]>(`connections:${sk}:`)] as const)),
     Promise.all(SKS.map(async (sk) => [sk, await kvGetMap<PhotoCrop>(`photoCrop:${sk}:`)] as const)),
+    Promise.all(SKS.map(async (sk) => [sk, await kvGetMap<StudentMentors>(`mentors:${sk}:`)] as const)),
     canSeeNotes
       ? Promise.all(SKS.map(async (sk) => [sk, await kvGetMap<Interaction[]>(`interactions:${sk}:`)] as const))
       : Promise.resolve(null),
@@ -74,6 +77,7 @@ export async function GET() {
     noteCounts: noteCountsByTab,
     connectionDates: connectionDatesByTab,
     photoCrops: photoCropsByTab,
+    mentors: byTab(mentors),
     interactionCounts: interactionCountsByTab,
     interactionCountsOk: !!interactionCounts,
   });

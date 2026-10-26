@@ -154,6 +154,9 @@ export const HTML_BODY = `
         <button class="filter-toggle-btn" id="filter-toggle-btn" onclick="toggleFilterPanel()">
           Filters<span class="filter-count" id="filter-count"></span>
         </button>
+        <button class="filter-toggle-btn my-students-btn" id="my-students-btn" onclick="toggleMyStudents()" style="display:none" title="Only students you mentor">
+          My students
+        </button>
       </div>
       <div class="filter-panel" id="filter-panel">
         <div class="filter-group">
@@ -175,6 +178,9 @@ export const HTML_BODY = `
             <option value="stale">Needs Connection</option>
             <option value="none">Not Connected</option>
           </select>
+          <select class="filter-select" id="filter-mentor" onchange="onMentorFilterChange()">
+            <option value="">All Mentors</option>
+          </select>
           <select class="filter-select" id="filter-sort" onchange="applyFilters()">
             <option value="">Default Order</option>
             <option value="name-asc">Name A → Z</option>
@@ -184,6 +190,7 @@ export const HTML_BODY = `
             <option value="status-asc">Core → Fringe</option>
             <option value="interactions-desc">Most Interactions</option>
             <option value="interactions-asc">Fewest Interactions</option>
+            <option value="mentor-asc">Mentor A → Z</option>
           </select>
         </div>
         <div class="filter-actions">
@@ -197,6 +204,7 @@ export const HTML_BODY = `
       <div id="tab-hs" class="tab-panel active" data-print-title="High School">
         <div class="section-header">
           <div class="section-label" id="hs-grid-label">All Students</div>
+          <button class="add-btn select-btn edit-gated" onclick="toggleSelectMode()" style="display:none">Select</button>
           <button class="add-btn edit-gated" onclick="openAddModal('hs')" style="display:none">+ Add</button>
         </div>
         <div class="roster-grid" id="hs-grid"></div>
@@ -206,6 +214,7 @@ export const HTML_BODY = `
       <div id="tab-ms" class="tab-panel" data-print-title="Middle School">
         <div class="section-header">
           <div class="section-label" id="ms-grid-label">All Students</div>
+          <button class="add-btn select-btn edit-gated" onclick="toggleSelectMode()" style="display:none">Select</button>
           <button class="add-btn edit-gated" onclick="openAddModal('ms')" style="display:none">+ Add</button>
         </div>
         <div class="roster-grid" id="ms-grid"></div>
@@ -286,6 +295,7 @@ export const HTML_BODY = `
       <button class="admin-tab active" onclick="switchAdminTab('overview',this)">Overview</button>
       <button class="admin-tab" onclick="switchAdminTab('users',this)">Users</button>
       <button class="admin-tab" onclick="switchAdminTab('metrics',this)">Metrics</button>
+      <button class="admin-tab" onclick="switchAdminTab('mentors',this)">Mentors</button>
     </div>
     <div id="admin-overview" class="admin-sec active">
       <div class="kpi-grid" id="admin-stats-grid"><div class="loader"><div class="loader-ring"></div></div></div>
@@ -295,6 +305,9 @@ export const HTML_BODY = `
     </div>
     <div id="admin-metrics" class="admin-sec">
       <div id="admin-metrics-content"><div class="loader"><div class="loader-ring"></div></div></div>
+    </div>
+    <div id="admin-mentors" class="admin-sec">
+      <div id="admin-mentors-content" style="overflow-x:auto"><div class="loader"><div class="loader-ring"></div></div></div>
     </div>
     <footer>Worship Grow Go · Admin</footer>
   </div>
@@ -910,6 +923,48 @@ export const HTML_BODY = `
   <div class="dp-weekdays"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
   <div class="dp-grid" id="dp-grid"></div>
   <button type="button" class="dp-today-btn" onclick="dpSelectToday()">Today</button>
+</div>
+
+<!-- MENTOR PICKER (shared popover — one student's pill, the detail chip, or the bulk bar) -->
+<div class="mp-popover" id="mp-popover" role="dialog" aria-label="Choose mentor">
+  <div class="mp-head">
+    <div class="mp-title" id="mp-title">Mentor</div>
+    <button type="button" class="mp-close" onclick="closeMentorPicker()" aria-label="Close">✕</button>
+  </div>
+  <div class="mp-slots">
+    <button type="button" class="mp-slot active" id="mp-slot-primary" onclick="setMentorSlot('primary')">Primary</button>
+    <button type="button" class="mp-slot" id="mp-slot-secondary" onclick="setMentorSlot('secondary')">Secondary</button>
+  </div>
+  <input type="text" class="mp-search" id="mp-search" placeholder="Search leaders or type a name…" autocomplete="off" oninput="renderMentorPicker()" onkeydown="mentorSearchKey(event)">
+  <div class="mp-list" id="mp-list"></div>
+  <div class="mp-actions" id="mp-actions"></div>
+</div>
+
+<!-- BULK SELECT BAR -->
+<div class="bulk-bar" id="bulk-bar">
+  <span class="bulk-count" id="bulk-count">0 selected</span>
+  <button type="button" class="bulk-btn" onclick="selectAllShown()">All shown</button>
+  <button type="button" class="bulk-btn primary" id="bulk-assign-btn" onclick="openBulkMentorPicker(event)">Assign mentor…</button>
+  <button type="button" class="bulk-btn" onclick="toggleSelectMode(false)">Done</button>
+</div>
+
+<!-- REPLACE MENTOR (Adminland → Mentors) -->
+<div class="modal-overlay" id="mentor-replace-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('mentor-replace-modal')">✕</button>
+    <div class="modal-title">Replace Mentor</div>
+    <div class="modal-sub" id="mr-sub">Move students to someone else</div>
+    <div class="field"><label>Hand them to</label><select id="mr-to" onchange="onReplaceTargetChange()"></select></div>
+    <div class="field" id="mr-name-field" style="display:none"><label>Name</label><input type="text" id="mr-name" maxlength="60" placeholder="Volunteer's name"></div>
+    <div class="mr-slots">
+      <label><input type="checkbox" id="mr-slot-primary" checked> Primary</label>
+      <label><input type="checkbox" id="mr-slot-secondary" checked> Secondary</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-save" id="mr-save" onclick="saveReplaceMentor()">Replace</button>
+      <button class="btn-secondary" onclick="closeModal('mentor-replace-modal')">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <!-- TOAST -->
