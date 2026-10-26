@@ -4,7 +4,7 @@ import { describePayloadProblem, type RosterPayload, type SheetKey, type Student
 
 // Keeps roster_cache (the fast read-path the roster grid paints from) in step
 // with the Google Sheet, which stays the source of truth. Two callers:
-//   - app/roster/api/sync/route.ts, on a 5-minute Vercel Cron — catches
+//   - app/roster/api/sync/route.ts, on a daily Vercel Cron (Hobby plan limit) — catches
 //     edits made directly in Sheets, outside the app.
 //   - app/roster/api/sheet/write/route.ts, best-effort, right after an
 //     app-side write — so the editing leader sees their own change in the
