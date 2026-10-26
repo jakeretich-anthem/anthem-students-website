@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "../../lib/auth";
 import { uploadPhotoToStorage } from "../../lib/storage";
 
+const MAX_BYTES = 4 * 1024 * 1024;
+
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -11,6 +13,14 @@ export async function POST(request: Request) {
     const file = formData.get("file");
     const type = (formData.get("type") as string) || "student";
     if (!(file instanceof File)) return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    // The client downsizes before sending (see uploadOriginalPhoto), so anything
+    // near Vercel's 4.5MB request cap here is a client that skipped that step.
+    if (!(file.type || "").startsWith("image/")) {
+      return NextResponse.json({ error: "That file isn't an image" }, { status: 400 });
+    }
+    if (file.size > MAX_BYTES) {
+      return NextResponse.json({ error: "Photo is too large — try a smaller one" }, { status: 413 });
+    }
 
     // Profile photos and logos → Supabase Storage (replaces the original R2 bucket)
     if (type === "leader" || type === "logo") {

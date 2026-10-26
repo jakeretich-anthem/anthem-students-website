@@ -181,6 +181,11 @@ export const HTML_BODY = `
           <select class="filter-select" id="filter-mentor" onchange="onMentorFilterChange()">
             <option value="">All Mentors</option>
           </select>
+          <select class="filter-select" id="filter-apprentice" onchange="applyFilters()">
+            <option value="">Apprentices or Not</option>
+            <option value="yes">Apprentices only</option>
+            <option value="no">Not apprentices</option>
+          </select>
           <select class="filter-select" id="filter-sort" onchange="applyFilters()">
             <option value="">Default Order</option>
             <option value="name-asc">Name A → Z</option>
@@ -758,6 +763,13 @@ export const HTML_BODY = `
       </div>
       <div class="field-hint" id="ef-connected-hint">Turning this on stamps today as the parent connection date.</div>
     </div>
+    <div class="field">
+      <label>Student Apprentice</label>
+      <div class="connected-toggle apprentice-toggle" id="ef-apprentice-toggle" onclick="toggleApprenticeField()">
+        <div class="toggle-dot"></div>
+        <span class="toggle-label">Not an Apprentice</span>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn-save" id="ef-save-btn" onclick="saveEdit()">Save Changes</button>
       <button class="btn-secondary" onclick="closeEditModal()">Cancel</button>
@@ -773,16 +785,21 @@ export const HTML_BODY = `
     <div class="modal-title">My Profile</div>
     <div class="modal-sub">Leader Account</div>
     <div class="profile-av-wrap">
-      <div class="profile-av" id="profile-av-lg">
+      <button type="button" class="profile-av" id="profile-av-lg" onclick="profileAvatarClick()" title="Change photo" aria-label="Change photo">
         <span id="profile-av-initials">?</span>
-        <img id="profile-av-img" src="" alt="" onload="this.classList.add('loaded');applyCropFromDataset(this)" onerror="this.style.display='none'">
-      </div>
+        <img id="profile-av-img" alt="" onload="this.classList.add('loaded');applyCropFromDataset(this)" onerror="this.style.display='none'">
+        <span class="profile-av-cam" aria-hidden="true">📷</span>
+      </button>
       <div>
         <div style="font-size:16px;font-weight:600" id="profile-display-name">Loading…</div>
         <div style="font-size:12px;color:var(--muted)" id="profile-display-email"></div>
-        <label class="upload-label" for="profile-photo-input" style="margin-top:8px">📸 Change Photo</label>
-        <input type="file" id="profile-photo-input" accept="image/*" onchange="uploadProfilePhoto(this)">
-        <button type="button" class="upload-label" id="profile-recrop-btn" style="display:none;margin-top:8px" onclick="recropProfilePhoto()">✂️ Recrop</button>
+        <div class="profile-photo-hint" id="profile-photo-hint" style="display:none">Add a photo so students and leaders recognize you.</div>
+        <div class="profile-photo-actions">
+          <label class="upload-label" for="profile-photo-input" id="profile-photo-label">📸 Change Photo</label>
+          <input type="file" id="profile-photo-input" accept="image/*" onchange="uploadProfilePhoto(this)">
+          <button type="button" class="upload-label" id="profile-recrop-btn" style="display:none" onclick="recropProfilePhoto()">✂️ Recrop</button>
+          <button type="button" class="upload-label upload-label-quiet" id="profile-remove-photo-btn" style="display:none" onclick="removeProfilePhoto()">Remove</button>
+        </div>
       </div>
     </div>
     <div class="field"><label>Display Name</label><input type="text" id="profile-name-input" placeholder="Your full name"></div>
@@ -890,7 +907,7 @@ export const HTML_BODY = `
 <!-- PHOTO CROP MODAL -->
 <div class="modal-overlay" id="crop-modal">
   <div class="modal crop-modal-inner">
-    <button class="modal-close" onclick="closeModal('crop-modal')">✕</button>
+    <button class="modal-close" onclick="closeCropModal()">✕</button>
     <div class="modal-title">Adjust Photo</div>
     <div class="modal-sub">Drag to reposition · Pinch or scroll to zoom</div>
     <div class="crop-canvas-wrap">
@@ -945,6 +962,7 @@ export const HTML_BODY = `
   <span class="bulk-count" id="bulk-count">0 selected</span>
   <button type="button" class="bulk-btn" onclick="selectAllShown()">All shown</button>
   <button type="button" class="bulk-btn primary" id="bulk-assign-btn" onclick="openBulkMentorPicker(event)">Assign mentor…</button>
+  <button type="button" class="bulk-btn" id="bulk-apprentice-btn" onclick="bulkToggleApprentice()">🌱 Mark apprentice</button>
   <button type="button" class="bulk-btn" onclick="toggleSelectMode(false)">Done</button>
 </div>
 

@@ -1,4 +1,4 @@
-import { kvPut } from "./kv";
+import { logActivity } from "./activity";
 import type { RosterUser } from "./auth";
 
 // A student's primary (and optional secondary) mentor. Lives in roster_kv
@@ -52,10 +52,5 @@ export async function logMentorActivity(
   user: RosterUser,
   item: { type: "mentor_changed" | "mentor_bulk"; summary: string; studentName?: string; sk?: string; id?: string }
 ) {
-  const actKey = `activity:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
-  await kvPut(
-    actKey,
-    { ...item, studentName: item.studentName || "", leader: user.name, leaderEmail: user.email, createdAt: new Date().toISOString() },
-    90 * 24 * 60 * 60
-  );
+  await logActivity(user, item);
 }

@@ -462,8 +462,11 @@ function updateNav() {
     const avatarInner = thumb
       ? '<img class=\"nav-avatar-img\" src=\"'+thumb+'\" alt=\"'+(currentUser.name||'User')+'\" onerror=\"this.style.display=\\'none\\';this.parentElement.classList.remove(\\'has-photo\\')\">'
       : initials(currentUser.name);
-    const photoClass = thumb ? ' has-photo' : '';
-    return adminlandBtn + '<button class=\"nav-avatar'+photoClass+'\" onclick=\"openProfileModal()\" title=\"'+currentUser.name+'\">'+avatarInner+'</button>';
+    // No photo yet: a dashed ring and a title that says what tapping does —
+    // the profile modal is the only place a leader can add one.
+    const photoClass = thumb ? ' has-photo' : (currentUser.email ? ' no-photo' : '');
+    const avTitle = thumb || !currentUser.email ? currentUser.name : currentUser.name+' · Add your photo';
+    return adminlandBtn + '<button class=\"nav-avatar'+photoClass+'\" onclick=\"openProfileModal()\" title=\"'+avTitle+'\">'+avatarInner+'</button>';
   };
   ['nav-right','student-nav-right'].forEach(id => {
     const el = document.getElementById(id);
@@ -642,6 +645,7 @@ function applyBootstrapExtras(extras) {
     const cropMap = (extras && extras.photoCrops && extras.photoCrops[sk]) || {};
     const intMap = (extras && extras.interactionCounts && extras.interactionCounts[sk]) || {};
     const mentorMap = (extras && extras.mentors && extras.mentors[sk]) || {};
+    const apprenticeMap = (extras && extras.apprentices && extras.apprentices[sk]) || {};
     (DATA[sk].students||[]).forEach(p => {
       const g = goalsMap[p.id] || {};
       p.goals = g.goals || [];
@@ -657,6 +661,7 @@ function applyBootstrapExtras(extras) {
       p.interactionCount = intMap[p.id] || 0;
       const mm = mentorMap[p.id] || {};
       p.mentors = { primary: mm.primary || null, secondary: mm.secondary || null };
+      p.apprentice = !!apprenticeMap[p.id];
     });
   });
 }
@@ -816,7 +821,8 @@ function makeCard(person, idx, sk) {
     (thumb ? '<img src="'+thumb+'" alt="" loading="lazy" onerror="this.style.display=\\'none\\'">' : '')+
     (canEdit?'<div class="av-edit-overlay">📷</div>':'')+
     '</div><div class="card-name-row"><div class="card-name">'+person.name+'</div>'+
-    ((tr.showGrade!==false) && person.grade ? '<span class="badge-grade">Gr.'+person.grade+'</span>' : '')+'</div>'+
+    ((tr.showGrade!==false) && person.grade ? '<span class="badge-grade">Gr.'+person.grade+'</span>' : '')+
+    apprenticePillHtml(person)+'</div>'+
     (meta ? '<div class="card-meta">'+meta+'</div>' : '')+
     '<div class="card-status-row">'+statusEl+connBadge+'</div>' +
     '<div class="mentor-row">'+mentorRowHtml(person, sk, idx)+'</div>' + goalHtml +
@@ -1327,17 +1333,40 @@ function openProfileModal() {
   sv('profile-name-input', currentUser.name||'');
   sv('profile-since-input', currentUser.leaderSince||'');
   sv('profile-funfact-input', currentUser.funFact||'');
+  paintProfileAvatar();
+  openModal('profile-modal');
+}
+
+// Everything in the profile modal that depends on whether there's a photo.
+function paintProfileAvatar() {
+  if (!currentUser) return;
+  const has=!!currentUser.photoUrl;
   const img=document.getElementById('profile-av-img');
   const thumb=driveThumb(currentUser.photoUrl);
-  if(thumb){
-    img.dataset.crop=currentUser.photoCrop?JSON.stringify(currentUser.photoCrop):'';
-    img.src=thumb;img.style.display='';img.classList.remove('loaded');
-    applyCropFromDataset(img);
+  if(img){
+    if(thumb){
+      img.dataset.crop=currentUser.photoCrop?JSON.stringify(currentUser.photoCrop):'';
+      if(img.getAttribute('src')!==thumb){ img.classList.remove('loaded'); img.src=thumb; }
+      img.style.display='';
+      applyCropFromDataset(img); // same src → onload won't refire
+    } else {
+      img.style.display='none'; img.removeAttribute('src'); img.classList.remove('loaded');
+    }
   }
-  else img.style.display='none';
-  const recropBtn=document.getElementById('profile-recrop-btn');
-  if(recropBtn) recropBtn.style.display=currentUser.photoUrl?'':'none';
-  openModal('profile-modal');
+  const show=(id,on)=>{ const el=document.getElementById(id); if(el) el.style.display=on?'':'none'; };
+  show('profile-recrop-btn', has);
+  show('profile-remove-photo-btn', has);
+  show('profile-photo-hint', !has);
+  const label=document.getElementById('profile-photo-label');
+  if(label) label.textContent=has?'📸 Change Photo':'📸 Add Photo';
+}
+// The avatar itself is the obvious thing to tap.
+function profileAvatarClick() {
+  if (currentUser && currentUser.photoUrl) recropProfilePhoto();
+  else { const input=document.getElementById('profile-photo-input'); if(input) input.click(); }
+}
+async function removeProfilePhoto() {
+  if (await saveOwnPhoto('', null)) showToast('Photo removed','ok');
 }
 function closeProfileModal() { closeModal('profile-modal'); }
 
@@ -1358,7 +1387,7 @@ async function saveProfile() {
 function uploadProfilePhoto(input) {
   if (!input.files.length) return;
   const file=input.files[0]; input.value='';
-  if(file.size>15*1024*1024){showToast('Photo is too large (max 15MB) — try a smaller photo','error');return;}
+  if(file.size>40*1024*1024){showToast('Photo is too large — try a smaller photo','error');return;}
   const reader=new FileReader();
   reader.onload=e=>{
     const img=new Image();
@@ -1389,6 +1418,7 @@ function openEditModal(sk, index) {
   sv('ef-photoUrl',p.photoUrl||''); sv('ef-primary-goal',p.primaryGoal||'');
   sv('ef-status',statusOf(p));
   setConnected(p.connected||false);
+  setApprenticeField(!!p.apprentice);
   efPhotoCrop=p.photoCrop||null;
   updateEditPhotoPreview();
   document.getElementById('ef-delete-btn').style.display='inline-block';
@@ -1404,7 +1434,7 @@ function openAddModal(sk) {
   ['ef-name','ef-grade','ef-school','ef-birthday','ef-notes','ef-photoUrl','ef-primary-goal'].forEach(id=>sv(id,''));
   sv('ef-status','core');
   efPhotoCrop=null;
-  setConnected(false); updateEditPhotoPreview();
+  setConnected(false); setApprenticeField(false); updateEditPhotoPreview();
   document.getElementById('ef-delete-btn').style.display='none';
   document.getElementById('ef-save-btn').textContent='Add Student';
   openModal('edit-modal');
@@ -1419,6 +1449,15 @@ function setConnected(val) {
   el.querySelector('.toggle-label').textContent=val?'Family Connected With':'Not Connected';
 }
 function toggleConnected() { setConnected(!connectedVal); }
+let efApprentice = false;
+function setApprenticeField(val) {
+  efApprentice=val;
+  const el=document.getElementById('ef-apprentice-toggle');
+  if(!el) return;
+  el.classList.toggle('on',val);
+  el.querySelector('.toggle-label').textContent=val?'Student Apprentice':'Not an Apprentice';
+}
+function toggleApprenticeField() { setApprenticeField(!efApprentice); }
 function updateEditPhotoPreview() {
   const url=v('ef-photoUrl'), name=v('ef-name')||'?';
   document.getElementById('edit-pv-fallback').textContent=initials(name);
@@ -1437,7 +1476,7 @@ function updateEditPhotoPreview() {
 function uploadStudentPhoto(input) {
   if (!input.files.length) return;
   const file=input.files[0]; input.value='';
-  if(file.size>15*1024*1024){showToast('Photo is too large (max 15MB) — try a smaller photo','error');return;}
+  if(file.size>40*1024*1024){showToast('Photo is too large — try a smaller photo','error');return;}
   const reader=new FileReader();
   reader.onload=e=>{
     const img=new Image();
@@ -1490,7 +1529,11 @@ async function saveEdit() {
       // the row's date from its response rather than guessing at it here.
       if (data.lastConnected!==undefined) person.lastConnected=data.lastConnected;
       person.photoCrop=efPhotoCrop;
-      await Promise.all([saveGoals(sk,person,primaryGoal,person.goals||[]), savePhotoCrop(sk,person.id,fields.photoUrl?efPhotoCrop:null)]);
+      await Promise.all([
+        saveGoals(sk,person,primaryGoal,person.goals||[]),
+        savePhotoCrop(sk,person.id,fields.photoUrl?efPhotoCrop:null),
+        efApprentice!==!!person.apprentice ? setApprentice(sk,index,efApprentice) : null,
+      ]);
       showToast(data.error?'Saved locally':'✓ Saved',data.error?'error':'ok');
     } else {
       const params=new URLSearchParams({action:'add',payload:JSON.stringify({sheet:sk,person:fields})});
@@ -1500,7 +1543,11 @@ async function saveEdit() {
       if (data.newRowIndex!==undefined) person.rowIndex=data.newRowIndex;
       if (data.id) person.id=data.id;
       DATA[sk].students.push(person);
-      await Promise.all([saveGoals(sk,person,primaryGoal,[]), savePhotoCrop(sk,person.id,fields.photoUrl?efPhotoCrop:null)]);
+      await Promise.all([
+        saveGoals(sk,person,primaryGoal,[]),
+        savePhotoCrop(sk,person.id,fields.photoUrl?efPhotoCrop:null),
+        efApprentice && person.id ? setApprentice(sk,DATA[sk].students.length-1,true) : null,
+      ]);
       showToast(data.error?'Added locally':'✓ Student added',data.error?'error':'ok');
     }
   } catch(e) {
@@ -1558,7 +1605,8 @@ async function renderStudentDetail(sk, index) {
       ? '<button class="chip conn-'+connectionState(person)+' chip-toggle" id="sd-conn-chip" onclick="toggleParentConnected(\\''+sk+'\\','+index+')" title="Tap to change">'+connectedLabel(person,'✅')+'</button>'
       : '<div class="chip conn-'+connectionState(person)+'" id="sd-conn-chip">'+connectedLabel(person,'✅')+'</div>')
   + '<div class="chip" id="sd-lastconn-chip">🤝 '+lastConnectedLabel(person)+'</div>'
-  + mentorChipHtml(person, sk, index);
+  + mentorChipHtml(person, sk, index)
+  + apprenticeChipHtml(person, sk, index);
 
   const editBtn = canEdit
     ? '<button class="nav-btn primary edit-gated" onclick="openEditModal(\\''+sk+'\\','+index+')">Edit</button>'
@@ -2270,6 +2318,8 @@ function activityCopy(item, leaderName) {
     case 'student_removed': return { names: leaderName+' removed '+student+' from the roster', summary: null };
     case 'mentor_changed': return { names: leaderName+' changed '+student+'’s mentor', summary: dashEsc(item.summary || '') };
     case 'mentor_bulk': return { names: leaderName+' reassigned mentors', summary: dashEsc(item.summary || '') };
+    case 'apprentice_changed': return { names: leaderName+' updated '+student+'’s apprentice status', summary: dashEsc(item.summary || '') };
+    case 'apprentice_bulk': return { names: leaderName+' updated student apprentices', summary: dashEsc(item.summary || '') };
     default: return { names: student+' × '+leaderName, summary: item.summary || '' }; // hangout, or a legacy untyped record
   }
 }
@@ -2441,6 +2491,7 @@ async function loadAdminUsers() {
   const res=await fetch('/roster/api/admin/users');
   const data=await res.json();
   const users=data.users||[];
+  adminUsersCache=users;
   const el=document.getElementById('admin-users-table');
   if (!users.length) { el.innerHTML='<div class="empty"><p>No users.</p></div>'; return; }
   const selfEmail=(currentUser?.email||'').toLowerCase();
@@ -2452,7 +2503,7 @@ async function loadAdminUsers() {
       const isPending=u.role==='pending';
       const leaderChecked=(isLeader||isAdmin)?'checked':'';
       const leaderDisabled=(isSelf||isAdmin)?'disabled':'';
-      const avatarHtml='<div class="admin-user-avatar" data-email="'+u.email+'" onclick="openAdminUserPhotoEditor(\\''+u.email+'\\','+(u.photoUrl?"'"+u.photoUrl+"'":'null')+')" title="Change photo">'+
+      const avatarHtml='<div class="admin-user-avatar" data-email="'+u.email+'" onclick="openAdminUserPhotoEditor(this.dataset.email)" title="'+(u.photoUrl?'Change photo':'Add photo')+'">'+
         (u.photoUrl
           ? '<img src="'+(driveThumb(u.photoUrl)||u.photoUrl)+'" alt="" onerror="this.style.display=\\'none\\'">'
           : '<div class="av-fallback" style="background:'+GRADIENTS[i % GRADIENTS.length]+'">'+initials(u.name)+'</div>')+
@@ -2468,6 +2519,7 @@ async function loadAdminUsers() {
           (!isAdmin?'<label class="leader-toggle" title="Toggle leader access"><input type="checkbox" '+leaderChecked+' '+leaderDisabled+' onchange="toggleLeader(\\''+u.email+'\\',this.checked)"><span>Leader</span></label>':'')+
           (!isSelf&&!isAdmin?'<button class="role-btn mk-admin" onclick="updateUser(\\''+u.email+'\\',\\'admin\\')">→ Admin</button>':'')+
           (!isSelf&&!isPending?'<button class="role-btn revoke" onclick="updateUser(\\''+u.email+'\\',\\'pending\\')">Revoke</button>':'')+
+          (u.photoUrl?'<button class="role-btn" data-email="'+u.email+'" onclick="removeAdminUserPhoto(this.dataset.email)" title="Remove photo">Remove photo</button>':'')+
         '</div></td></tr>';
     }).join('')+'</tbody></table>';
   el.querySelectorAll('.admin-user-avatar').forEach(wrap=>{
@@ -2557,6 +2609,12 @@ function populateFilterDropdowns() {
   }
   const myBtn=document.getElementById('my-students-btn');
   if(myBtn) myBtn.style.display=myMentorKey()?'':'none';
+  const apprenticeEl=document.getElementById('filter-apprentice');
+  if(apprenticeEl){
+    const n=all.filter(p=>p.apprentice).length;
+    const opt=apprenticeEl.querySelector('option[value="yes"]');
+    if(opt) opt.textContent='Apprentices only ('+n+')';
+  }
 }
 function applyFilters() {
   const q=(document.getElementById('roster-search').value||'').toLowerCase().trim();
@@ -2565,6 +2623,7 @@ function applyFilters() {
   const connF=document.getElementById('filter-connected').value;
   const statusF=(document.getElementById('filter-status')||{}).value||'';
   const mentorF=(document.getElementById('filter-mentor')||{}).value||'';
+  const apprenticeF=(document.getElementById('filter-apprentice')||{}).value||'';
   const sortF=document.getElementById('filter-sort').value;
   ['hs','ms'].forEach(sk => {
     const gridEl=document.getElementById(sk+'-grid');
@@ -2577,6 +2636,7 @@ function applyFilters() {
       if(statusF && statusOf(p)!==statusF) return false;
       if(connF && connectionState(p)!==connF) return false;
       if(mentorF && !matchesMentorFilter(p, mentorF)) return false;
+      if(apprenticeF && !!p.apprentice!==(apprenticeF==='yes')) return false;
       return true;
     });
     if(sortF) {
@@ -2625,6 +2685,8 @@ function clearFilters() {
   if(statusEl) statusEl.value='';
   const mentorEl=document.getElementById('filter-mentor');
   if(mentorEl) mentorEl.value='';
+  const apprenticeEl=document.getElementById('filter-apprentice');
+  if(apprenticeEl) apprenticeEl.value='';
   saveMyStudents(false);
   document.getElementById('filter-sort').value='';
   const panel = document.getElementById('filter-panel');
@@ -2649,6 +2711,7 @@ function updateFilterCount() {
     (document.getElementById('filter-connected')||{}).value,
     (document.getElementById('filter-status')||{}).value,
     (document.getElementById('filter-mentor')||{}).value,
+    (document.getElementById('filter-apprentice')||{}).value,
     (document.getElementById('filter-sort')||{}).value,
   ].filter(Boolean).length;
   const myBtn = document.getElementById('my-students-btn');
@@ -2988,6 +3051,12 @@ function updateBulkBar() {
   bar.classList.toggle('open', selectMode);
   document.getElementById('bulk-count').textContent = selectedCards.size+' selected';
   document.getElementById('bulk-assign-btn').disabled = !selectedCards.size;
+  const ab = document.getElementById('bulk-apprentice-btn');
+  if (ab) {
+    const picked = [...selectedCards].map(k => { const [sk, i] = k.split(':'); return (DATA[sk].students||[])[+i]; }).filter(Boolean);
+    ab.disabled = !picked.length;
+    ab.textContent = picked.length && picked.every(p => p.apprentice) ? 'Unmark apprentice' : '🌱 Mark apprentice';
+  }
 }
 async function bulkAssignMentor(slot, m) {
   const students = [...selectedCards].map(k => {
@@ -3049,7 +3118,7 @@ function restoreMyStudents() {
   if (saved && el && !el.value) el.value = myMentorKey();
 }
 function hasActiveFilters() {
-  return ['roster-search','filter-grade','filter-school','filter-connected','filter-status','filter-mentor','filter-sort']
+  return ['roster-search','filter-grade','filter-school','filter-connected','filter-status','filter-mentor','filter-apprentice','filter-sort']
     .some(id => { const el = document.getElementById(id); return !!(el && el.value); });
 }
 
@@ -3067,6 +3136,7 @@ async function loadAdminMentors() {
   const needs = list => list.filter(s => connectionState(s.p) !== 'connected').length;
   const noHangouts = list => interactionCountsOk ? String(list.filter(s => !s.p.interactionCount).length) : '—';
   const split = list => list.filter(s => s.sk === 'hs').length+' · '+list.filter(s => s.sk === 'ms').length;
+  const apprentices = list => list.filter(s => s.p.apprentice).length;
   const mentored = all.length - unassigned.length;
   const active = adminMentorRows.filter(m => m.primary > 0).length;
 
@@ -3074,7 +3144,7 @@ async function loadAdminMentors() {
     '<tr'+(cls ? ' class="'+cls+'"' : '')+'><td class="avatar-cell">'+avatar+'</td>'+
     '<td><div class="am-name">'+name+'</div>'+(tag ? '<div class="am-tag">'+tag+'</div>' : '')+'</td>'+
     '<td class="am-num">'+primary+'</td><td class="am-num">'+secondary+'</td>'+
-    '<td class="am-num">'+split(list)+'</td><td class="am-num">'+needs(list)+'</td><td class="am-num">'+noHangouts(list)+'</td>'+
+    '<td class="am-num">'+split(list)+'</td><td class="am-num">'+apprentices(list)+'</td><td class="am-num">'+needs(list)+'</td><td class="am-num">'+noHangouts(list)+'</td>'+
     '<td><div class="btn-row">'+actions+'</div></td></tr>';
 
   el.innerHTML =
@@ -3082,7 +3152,7 @@ async function loadAdminMentors() {
       kpi(mentored+'/'+all.length,'Have a Mentor')+kpi(unassigned.length,'Unassigned')+
       kpi(active,'Active Mentors')+kpi(active ? (mentored/active).toFixed(1) : '0','Avg per Mentor')+
     '</div>'+
-    '<table class="user-table am-table"><thead><tr><th></th><th>Mentor</th><th>Primary</th><th>Secondary</th><th>HS · MS</th><th>Need parent conn.</th><th>No hangouts</th><th></th></tr></thead><tbody>'+
+    '<table class="user-table am-table"><thead><tr><th></th><th>Mentor</th><th>Primary</th><th>Secondary</th><th>HS · MS</th><th>Apprentices</th><th>Need parent conn.</th><th>No hangouts</th><th></th></tr></thead><tbody>'+
     row('<span class="m-av am-av mp-plus">?</span>', 'No primary mentor', 'Needs someone', unassigned.length, '—', unassigned,
       unassigned.length ? '<button class="role-btn mk-admin" onclick="viewMentorStudents(\\'__none\\')">View</button>' : '', 'am-unassigned')+
     adminMentorRows.map((m, i) => {
@@ -3168,9 +3238,93 @@ async function saveReplaceMentor() {
   }
 }
 
+// ── STUDENT APPRENTICES ──────────────────────────────────────
+// A yes/no flag per student, kept in roster_kv (see
+// /roster/api/student/apprentice) and delivered by /roster/api/bootstrap.
+function apprenticePillHtml(person) {
+  return person.apprentice ? '<span class="apprentice-pill" title="Student apprentice">Apprentice</span>' : '';
+}
+function apprenticeChipHtml(person, sk, idx) {
+  if (!canEdit) return person.apprentice ? '<div class="chip apprentice-chip on" id="sd-apprentice-chip">🌱 Apprentice</div>' : '';
+  return '<button class="chip chip-toggle apprentice-chip'+(person.apprentice ? ' on' : ' off')+'" id="sd-apprentice-chip" '+
+    'title="'+(person.apprentice ? 'Tap to unmark' : 'Mark as a student apprentice')+'" '+
+    'onclick="toggleApprenticeChip(\\''+sk+'\\','+idx+')">'+(person.apprentice ? '🌱 Apprentice' : '+ Apprentice')+'</button>';
+}
+// Repaints just this student's pill and chip, same as paintMentors().
+function paintApprentice(sk, idx) {
+  const person = (DATA[sk].students||[])[idx];
+  if (!person) return;
+  const card = document.querySelector('.card[data-sk="'+sk+'"][data-idx="'+idx+'"]');
+  const row = card && card.querySelector('.card-name-row');
+  if (row) {
+    const old = row.querySelector('.apprentice-pill');
+    if (old) old.remove();
+    if (person.apprentice) row.insertAdjacentHTML('beforeend', apprenticePillHtml(person));
+  }
+  if (currentStudentKey && currentStudentKey.sk===sk && currentStudentKey.index===idx) {
+    const chip = document.getElementById('sd-apprentice-chip');
+    const html = apprenticeChipHtml(person, sk, idx);
+    if (chip) chip.outerHTML = html;
+  }
+}
+async function setApprentice(sk, idx, on) {
+  const person = (DATA[sk].students||[])[idx];
+  if (!person || !person.id) return false;
+  const before = !!person.apprentice;
+  person.apprentice = on;
+  paintApprentice(sk, idx);
+  try {
+    const res = await fetch('/roster/api/student/apprentice', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ sk, id: person.id, studentName: person.name, apprentice: on }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.success) throw new Error(d.error || 'save failed');
+  } catch (e) {
+    person.apprentice = before;
+    paintApprentice(sk, idx);
+    showToast('Couldn’t save apprentice — '+e.message, 'error');
+    return false;
+  }
+  populateFilterDropdowns();
+  return true;
+}
+async function toggleApprenticeChip(sk, idx) {
+  const person = (DATA[sk].students||[])[idx];
+  if (!person) return;
+  const on = !person.apprentice;
+  if (await setApprentice(sk, idx, on)) showToast(on ? '🌱 Marked as apprentice' : 'Apprentice removed', 'ok');
+}
+// Bulk bar: marks every selected student, or — when they all already are —
+// unmarks them, so the one button covers both directions.
+async function bulkToggleApprentice() {
+  const picked = [...selectedCards].map(k => {
+    const [sk, i] = k.split(':');
+    const p = (DATA[sk].students||[])[+i];
+    return p && p.id ? { sk, id: p.id, p } : null;
+  }).filter(Boolean);
+  if (!picked.length) { showToast('Select some students first'); return; }
+  const on = !picked.every(x => x.p.apprentice);
+  try {
+    const res = await fetch('/roster/api/student/apprentice', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ apprentice: on, students: picked.map(({ sk, id }) => ({ sk, id })) }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.success) throw new Error(d.error || 'save failed');
+    const done = new Set(d.updated || []);
+    picked.forEach(x => { if (done.has(x.sk+':'+x.id)) x.p.apprentice = on; });
+    toggleSelectMode(false);
+    renderAll();
+    showToast((on ? '🌱 Marked ' : 'Unmarked ')+done.size+' student'+(done.size === 1 ? '' : 's')+(on ? ' as apprentice' : ''), 'ok');
+  } catch (e) {
+    showToast('Couldn’t update apprentices — '+e.message, 'error');
+  }
+}
+
 // ── CSV EXPORT ───────────────────────────────────────────────
 function exportCSV() {
-  const rows=[['Name','Grade','School','Birthday','Connection Status','Level','Parent Connection','Last Connection','Connections Logged','Interaction Count','Primary Mentor','Secondary Mentor','Primary Goal','Notes']];
+  const rows=[['Name','Grade','School','Birthday','Connection Status','Level','Parent Connection','Last Connection','Connections Logged','Interaction Count','Primary Mentor','Secondary Mentor','Apprentice','Primary Goal','Notes']];
   const CONN_CSV = { connected:'Connected', stale:'Needs Connection', none:'Not Connected' };
   for(const sk of ['hs','ms']){
     (DATA[sk].students||[]).forEach(p=>{
@@ -3183,6 +3337,7 @@ function exportCSV() {
         p.connectionCount||'0',
         p.interactionCount||'0',
         mentorName(mentorsOf(p).primary), mentorName(mentorsOf(p).secondary),
+        p.apprentice?'Yes':'',
         p.primaryGoal||'', (p.notes||'').replace(/[\\n\\r]+/g,' ')
       ]);
     });
@@ -3597,8 +3752,11 @@ let cropReplaceInputId=null;
 
 function onSharedPhotoSelected(input) {
   const file=input.files[0];
+  // Cleared straight away — otherwise picking the same file again (after a
+  // Cancel, say) fires no change event and the button looks dead.
+  input.value='';
   if(!file) return;
-  if(file.size>15*1024*1024){showToast('Photo is too large (max 15MB) — try a smaller photo','error');input.value='';return;}
+  if(file.size>40*1024*1024){showToast('Photo is too large — try a smaller photo','error');return;}
   const reader=new FileReader();
   reader.onload=e=>{
     const img=new Image();
@@ -3671,16 +3829,30 @@ async function profileCropCallback(crop, file) {
     if(!data.url){showToast(data.error||'Upload failed','error');return;}
     url=data.url;
   }
-  await fetch('/roster/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photoUrl:url,photoCrop:crop})});
-  currentUser.photoUrl=url; currentUser.photoCrop=crop;
-  const i=document.getElementById('profile-av-img');
-  if(i){
-    i.dataset.crop=JSON.stringify(crop);
-    i.src=driveThumb(url)||url;
-    i.style.display='';
-    applyCropFromDataset(i); // in case src didn't change and onload won't refire
+  if (await saveOwnPhoto(url, crop)) showToast('✓ Photo updated','ok');
+}
+
+// Saves the signed-in leader's own photo. Used to report success whether or
+// not the save landed.
+async function saveOwnPhoto(url, crop) {
+  try {
+    const res=await fetch('/roster/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photoUrl:url||'',photoCrop:crop})});
+    const d=await res.json().catch(()=>({}));
+    if(!res.ok||!d.success) throw new Error(d.error||('error '+res.status));
+    currentUser.photoUrl=d.photoUrl||null; currentUser.photoCrop=d.photoCrop||null;
+  } catch(e) {
+    showToast('Couldn’t save photo — '+e.message,'error');
+    return false;
   }
-  updateNav(); showToast('✓ Photo updated','ok');
+  paintProfileAvatar(); updateNav(); refreshLeaderDirectory();
+  return true;
+}
+
+// Leader faces on mentor pills, notes and the activity feed come from the
+// cached leader directory — refetch it so a new photo shows without a reload.
+function refreshLeaderDirectory() {
+  leaderDirectoryPromise=null;
+  return loadLeaderDirectory().then(()=>{ if(currentUser) renderAll(); });
 }
 
 function recropProfilePhoto() {
@@ -3750,17 +3922,41 @@ function adminUserPhotoCropCallback(email) {
       if (!data.url) { showToast(data.error || 'Upload failed', 'error'); return; }
       url = data.url;
     }
+    if (await saveAdminUserPhoto(email, url, crop)) showToast('✓ Photo updated', 'ok');
+  };
+}
+
+async function saveAdminUserPhoto(email, url, crop) {
+  try {
     const res = await fetch('/roster/api/admin/users/photo', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ email, photoUrl: url, photoCrop: crop })
     });
-    if (!res.ok) { showToast('Failed to save photo', 'error'); return; }
-    showToast('✓ Photo updated', 'ok');
-    loadAdminUsers();
-  };
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.success) throw new Error(d.error || ('error '+res.status));
+    // An admin editing their own row here is also editing the nav avatar.
+    if (currentUser && (currentUser.email||'').toLowerCase() === String(email).toLowerCase()) {
+      currentUser.photoUrl = d.photoUrl || null; currentUser.photoCrop = d.photoCrop || null;
+      updateNav();
+    }
+  } catch (e) {
+    showToast('Couldn’t save photo — '+e.message, 'error');
+    return false;
+  }
+  loadAdminUsers();
+  refreshLeaderDirectory();
+  return true;
 }
 
-function openAdminUserPhotoEditor(email, existingUrl) {
+async function removeAdminUserPhoto(email) {
+  if (await saveAdminUserPhoto(email, '', null)) showToast('Photo removed', 'ok');
+}
+
+// Looks the photo up from the last Users load rather than taking it as an
+// argument — it used to be pasted into an inline onclick string.
+function openAdminUserPhotoEditor(email) {
+  const u = adminUsersCache.find(x => x.email === email);
+  const existingUrl = u && u.photoUrl;
   cropCallback = adminUserPhotoCropCallback(email);
   if (existingUrl) {
     cropReplaceInputId = 'shared-photo-input';
@@ -3918,6 +4114,13 @@ function onCropZoom(val) {
   setCropZoom(+val);
 }
 
+// Backdrop/Escape close. The crop modal holds a pending callback and file —
+// left behind, the next pick from the shared input would save to whoever the
+// abandoned edit was for.
+function dismissModal(id) {
+  if (id === 'crop-modal') closeCropModal(); else closeModal(id);
+}
+
 function closeCropModal() {
   closeModal('crop-modal');
   cropCallback=null; cropImg=null; cropReplaceInputId=null; cropPendingFile=null;
@@ -3932,12 +4135,48 @@ function saveCrop() {
   if(cropCallback) cropCallback(crop, file);
 }
 
+// Vercel turns away any request body over 4.5MB with a bare 413, and a phone
+// camera photo is routinely 3–10MB. Cropping is non-destructive (the crop is
+// stored as fractions, not baked into pixels), so shrinking the *whole* photo
+// here loses nothing the crop needs — it just has to stay uncropped.
+const UPLOAD_MAX_EDGE = 2048;
+function downscaleForUpload(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const scale = Math.min(1, UPLOAD_MAX_EDGE / Math.max(w, h));
+      if (scale === 1 && file.size < 1.5*1024*1024) { resolve(file); return; }
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(w*scale); canvas.height = Math.round(h*scale);
+        const ctx = canvas.getContext('2d');
+        // JPEG has no alpha — a transparent PNG would otherwise go black.
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => {
+          if (!blob) { resolve(file); return; }
+          const name = (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg';
+          resolve(new File([blob], name, { type: 'image/jpeg' }));
+        }, 'image/jpeg', 0.88);
+      } catch (e) { resolve(file); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 async function uploadOriginalPhoto(file, type) {
   showToast('Uploading…');
   try {
+    file = await downscaleForUpload(file);
+    if (file.size > 4*1024*1024) return {error:'Photo is too large — try a smaller one'};
     const fd=new FormData(); fd.append('file',file,file.name||'photo.jpg'); fd.append('type',type);
     const res=await fetch('/roster/api/upload-photo',{method:'POST',body:fd});
     const data=await res.json().catch(()=>({}));
+    if(res.status===413) return {error:'Photo is too large — try a smaller one'};
     if(!res.ok||!data.url) return {error:data.error||('Upload failed ('+res.status+')')};
     return data;
   } catch(e) {
@@ -3957,6 +4196,7 @@ async function savePhotoCrop(sk, id, crop) {
 // a face. One shared in-flight promise so concurrent callers (student detail
 // loading notes+connections+interactions at once) share a single request.
 let leaderDirectory = [];
+let adminUsersCache = [];
 let leaderDirectoryPromise = null;
 function loadLeaderDirectory() {
   if (!leaderDirectoryPromise) {
@@ -4571,7 +4811,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // one starts with its fields switched off — the markup already says so for
   // the credential fields, this covers the rest.
   document.querySelectorAll('.modal-overlay').forEach(el => {
-    el.addEventListener('click', e => { if(e.target===el) closeModal(el.id); });
+    el.addEventListener('click', e => { if(e.target===el) dismissModal(el.id); });
     if (!el.classList.contains('open')) setModalInputsEnabled(el, false);
   });
   hideGateForms();
@@ -4603,7 +4843,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if(dp && dp.classList.contains('open')){ closeDatePicker(); return; }
       if(isMentorPickerOpen()){ closeMentorPicker(); return; }
       const open=document.querySelector('.modal-overlay.open');
-      if(open) closeModal(open.id);
+      if(open) dismissModal(open.id);
     }
   });
 

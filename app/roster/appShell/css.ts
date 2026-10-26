@@ -968,6 +968,15 @@ header { padding: 44px 0 24px; text-align: center; }
 .profile-av img.loaded { opacity: 1; }
 .upload-label { font-size: 12px; color: var(--accent); background: var(--accent-glow); border: 1px solid var(--accent-border); border-radius: 30px; padding: 6px 14px; cursor: pointer; display: inline-block; margin-top: 6px; transition: all .2s; }
 .upload-label:hover { background: rgba(245,200,66,.25); }
+.upload-label-quiet { color: var(--muted); background: transparent; border-color: var(--border2); }
+.upload-label-quiet:hover { color: var(--not-connected); background: rgba(248,113,113,.08); }
+.profile-photo-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.profile-photo-hint { font-size: 12px; color: var(--text2); margin-top: 6px; line-height: 1.4; }
+button.profile-av { cursor: pointer; padding: 0; }
+.profile-av-cam { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; background: rgba(0,0,0,.45); opacity: 0; transition: opacity .2s; }
+button.profile-av:hover .profile-av-cam, button.profile-av:focus-visible .profile-av-cam { opacity: 1; }
+@media (hover: none) { .profile-av-cam { opacity: .6; background: rgba(0,0,0,.25); font-size: 14px; align-items: flex-end; padding-bottom: 4px; } }
+.nav-avatar.no-photo { outline: 2px dashed var(--accent-border); outline-offset: 2px; }
 input[type=file] { display: none; }
 
 /* ── FILTER PANEL ─────────────────────────────────────────── */
@@ -1641,4 +1650,16 @@ body.select-mode .card-edit-btn { display: none; }
 .am-idle td { opacity: .55; }
 .mr-slots { display: flex; gap: 18px; margin: 4px 0 18px; font-size: 13px; color: var(--text2); }
 .mr-slots label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+/* ── STUDENT APPRENTICES ───────────────────────────────────── */
+/* Green, to read as a different kind of tag from the yellow mentor pills. */
+.apprentice-pill {
+  font-size: 9px; font-family: 'JetBrains Mono', monospace; letter-spacing: .06em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 20px; line-height: 1.5; white-space: nowrap;
+  color: var(--connected); background: rgba(74,222,128,.1); border: 1px solid rgba(74,222,128,.3);
+}
+.chip.apprentice-chip.on { color: var(--connected); border-color: rgba(74,222,128,.3); background: rgba(74,222,128,.08); }
+.chip.apprentice-chip.off { border-style: dashed; color: var(--muted); }
+.apprentice-toggle.on .toggle-dot { background: var(--connected); border-color: var(--connected); }
+.apprentice-toggle.on .toggle-label { color: var(--connected); }
 `;

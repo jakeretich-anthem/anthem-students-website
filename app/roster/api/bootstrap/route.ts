@@ -33,12 +33,13 @@ export async function GET() {
   if (!canSeeRoster) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const canSeeNotes = await hasPermission(user, "hangoutNotes", "view");
 
-  const [goals, noteCounts, connections, photoCrops, mentors, interactionCounts] = await Promise.all([
+  const [goals, noteCounts, connections, photoCrops, mentors, apprentices, interactionCounts] = await Promise.all([
     Promise.all(SKS.map(async (sk) => [sk, await kvGetMap<StudentGoals>(`goals:${sk}:`)] as const)),
     Promise.all(SKS.map(async (sk) => [sk, await kvGetMap<Note[]>(`notes:${sk}:`)] as const)),
     Promise.all(SKS.map(async (sk) => [sk, await kvGetMap<Connection[]>(`connections:${sk}:`)] as const)),
     Promise.all(SKS.map(async (sk) => [sk, await kvGetMap<PhotoCrop>(`photoCrop:${sk}:`)] as const)),
     Promise.all(SKS.map(async (sk) => [sk, await kvGetMap<StudentMentors>(`mentors:${sk}:`)] as const)),
+    Promise.all(SKS.map(async (sk) => [sk, await kvGetMap<unknown>(`apprentice:${sk}:`)] as const)),
     canSeeNotes
       ? Promise.all(SKS.map(async (sk) => [sk, await kvGetMap<Interaction[]>(`interactions:${sk}:`)] as const))
       : Promise.resolve(null),
@@ -78,6 +79,10 @@ export async function GET() {
     connectionDates: connectionDatesByTab,
     photoCrops: photoCropsByTab,
     mentors: byTab(mentors),
+    // id -> true for each student apprentice; absent means not one.
+    apprentices: Object.fromEntries(
+      apprentices.map(([sk, map]) => [sk, Object.fromEntries(Object.keys(map).map((id) => [id, true]))])
+    ),
     interactionCounts: interactionCountsByTab,
     interactionCountsOk: !!interactionCounts,
   });
