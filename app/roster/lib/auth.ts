@@ -138,6 +138,23 @@ export async function listAdmins(): Promise<{ email: string }[]> {
   return admins;
 }
 
+// Who gets the "someone is requesting leader access" email. Settings →
+// Access can name specific addresses; left blank it goes to every admin.
+export async function accessRequestRecipients(): Promise<{ email: string }[]> {
+  const settings = await kvGet<{ access?: { requestEmails?: string } }>("settings:org");
+  const configured = parseEmailList(settings?.access?.requestEmails);
+  return configured.length ? configured.map((email) => ({ email })) : listAdmins();
+}
+
+export function parseEmailList(raw: unknown): string[] {
+  if (typeof raw !== "string") return [];
+  const emails = raw
+    .split(/[\s,;]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+  return [...new Set(emails)];
+}
+
 export function safeUser(user: RosterUser) {
   return {
     name: user.name,

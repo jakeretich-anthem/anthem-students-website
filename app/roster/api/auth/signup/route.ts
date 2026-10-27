@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { kvGet, kvPut } from "../../../lib/kv";
-import { listAdmins, type RosterUser } from "../../../lib/auth";
+import { accessRequestRecipients, type RosterUser } from "../../../lib/auth";
 import { describePasswordProblem, generateToken, hashPassword, hashToken } from "../../../lib/crypto";
 import { emailLayout, sendEmail } from "../../../lib/email";
 import { escapeHtml } from "../../../lib/html";
@@ -62,9 +62,9 @@ export async function POST(request: Request) {
   // aren't the recipient, and declining now deletes the request for good.
   const reviewUrl = `${siteOrigin(request)}/roster/api/admin/request/review?token=${raw}`;
 
-  const admins = await listAdmins();
+  const recipients = await accessRequestRecipients();
   await Promise.all(
-    admins.map((a) =>
+    recipients.map((a) =>
       sendEmail({
         to: a.email,
         subject: `Leader access request — ${cleanName}`,

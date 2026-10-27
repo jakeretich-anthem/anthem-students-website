@@ -1321,7 +1321,6 @@ function paintProfileAvatar() {
     }
   }
   const show=(id,on)=>{ const el=document.getElementById(id); if(el) el.style.display=on?'':'none'; };
-  show('profile-recrop-btn', has);
   show('profile-remove-photo-btn', has);
   show('profile-photo-hint', !has);
   const label=document.getElementById('profile-photo-label');
@@ -1438,8 +1437,6 @@ function updateEditPhotoPreview() {
     applyCropFromDataset(img);
   }
   else img.style.display='none';
-  const recropBtn=document.getElementById('ef-recrop-btn');
-  if(recropBtn) recropBtn.style.display=url?'':'none';
 }
 
 function uploadStudentPhoto(input) {
@@ -2509,6 +2506,7 @@ async function loadAdminUsers() {
           (!isAdmin?'<label class="leader-toggle" title="Toggle leader access"><input type="checkbox" '+leaderChecked+' '+leaderDisabled+' onchange="toggleLeader(\\''+u.email+'\\',this.checked)"><span>Leader</span></label>':'')+
           (!isSelf&&!isAdmin?'<button class="role-btn mk-admin" onclick="updateUser(\\''+u.email+'\\',\\'admin\\')">→ Admin</button>':'')+
           (!isSelf&&!isPending?'<button class="role-btn revoke" onclick="updateUser(\\''+u.email+'\\',\\'pending\\')">Revoke</button>':'')+
+          '<button class="role-btn" data-email="'+u.email+'" onclick="changeUserEmail(this.dataset.email)" title="Change sign-in email">Change email</button>'+
           (u.photoUrl?'<button class="role-btn" data-email="'+u.email+'" onclick="removeAdminUserPhoto(this.dataset.email)" title="Remove photo">Remove photo</button>':'')+
         '</div></td></tr>';
     }).join('')+'</tbody></table>';
@@ -2550,6 +2548,24 @@ async function updateUser(email,role) {
   const data=await res.json();
   if (data.success) { showToast('✓ Updated','ok'); loadAdminUsers(); }
   else showToast(data.error||'Failed','error');
+}
+
+// Their password, notes and mentor assignments all move to the new address,
+// and anyone already signed in stays signed in.
+async function changeUserEmail(email) {
+  const next=window.prompt('New sign-in email for '+email+':', email);
+  if (next===null) return;
+  const newEmail=next.trim().toLowerCase();
+  if (!newEmail || newEmail===email.toLowerCase()) return;
+  const res=await fetch('/roster/api/admin/users/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,newEmail})});
+  const data=await res.json().catch(()=>({error:'Failed ('+res.status+')'}));
+  if (!data.success) { showToast(data.error||'Failed','error'); return; }
+  if (currentUser && currentUser.email && currentUser.email.toLowerCase()===email.toLowerCase()) {
+    currentUser.email=data.email;
+    const el=document.getElementById('profile-display-email'); if(el) el.textContent=data.email;
+  }
+  showToast('✓ Email changed','ok');
+  loadAdminUsers();
 }
 
 // Matches declining from the email link: the account is deleted outright and
@@ -3865,6 +3881,12 @@ async function editFormCropCallback(crop, file) {
   showToast(file?'✓ Uploaded':'✓ Crop updated','ok');
 }
 
+// Same as the profile avatar: tap the photo to recrop it, or to pick one
+// when there isn't one yet.
+function editPhotoPreviewClick() {
+  if (v('ef-photoUrl')) recropEditFormPhoto();
+  else { const input=document.getElementById('photo-upload-input'); if(input) input.click(); }
+}
 function recropEditFormPhoto() {
   const url=v('ef-photoUrl');
   if (!url) return;
@@ -4395,6 +4417,7 @@ function populateSettingsUI() {
   radios.forEach(r => { r.checked = r.value === (acc.mode || 'leaders-only'); });
   onAccessModeChange();
   sv('s-passcode', acc.passcode || '');
+  sv('s-request-emails', acc.requestEmails || '');
   const perms = acc.passcodePermissions || {};
   ['viewRoster','viewAttendance','viewNotes','viewPrayer'].forEach(k => {
     const cb = document.getElementById('s-perm-'+k);
@@ -4573,6 +4596,7 @@ async function saveSettings() {
     access: {
       mode: document.querySelector('input[name="access-mode"]:checked')?.value || 'leaders-only',
       passcode: v('s-passcode'),
+      requestEmails: v('s-request-emails'),
       passcodePermissions: {
         viewRoster: document.getElementById('s-perm-viewRoster')?.checked || false,
         viewAttendance: document.getElementById('s-perm-viewAttendance')?.checked || false,

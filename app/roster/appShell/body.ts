@@ -576,6 +576,17 @@ export const HTML_BODY = `
         </div>
 
         <div class="settings-card">
+          <div class="scard-title">Access Request Emails</div>
+          <div class="scard-row">
+            <div class="field">
+              <label>Send New Leader Requests To</label>
+              <input type="text" id="s-request-emails" placeholder="Every admin" oninput="markSettingsDirty()" autocomplete="off">
+              <div class="field-hint">Where the "someone is requesting leader access" email goes. Separate several addresses with commas. Leave blank to send it to every admin.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-card">
           <div class="scard-title">Simple Roles (MVP)</div>
           <div class="s-helper" style="margin-bottom:12px">What each role can do. Not customizable yet.</div>
           <table class="s-roles-table">
@@ -720,7 +731,7 @@ export const HTML_BODY = `
     <div class="modal-title" id="edit-modal-title">Edit Student</div>
     <div class="modal-sub" id="edit-modal-sub">High School · Core</div>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
-      <div class="photo-preview" id="edit-photo-preview">
+      <div class="photo-preview" id="edit-photo-preview" onclick="editPhotoPreviewClick()" title="Change photo">
         <div class="av-fallback" id="edit-pv-fallback" style="background:var(--accent)">?</div>
         <img id="edit-pv-img" src="" alt="" onload="this.classList.add('loaded');applyCropFromDataset(this)" onerror="this.style.display='none'">
       </div>
@@ -731,7 +742,6 @@ export const HTML_BODY = `
         </div>
         <label class="upload-label" for="photo-upload-input">📸 Upload Photo</label>
         <input type="file" id="photo-upload-input" accept="image/*" onchange="uploadStudentPhoto(this)">
-        <button type="button" class="upload-label" id="ef-recrop-btn" style="display:none" onclick="recropEditFormPhoto()">✂️ Recrop</button>
       </div>
     </div>
     <div class="field"><label>Full Name *</label><input type="text" id="ef-name" placeholder="First Last"></div>
@@ -796,7 +806,6 @@ export const HTML_BODY = `
         <div class="profile-photo-actions">
           <label class="upload-label" for="profile-photo-input" id="profile-photo-label">📸 Change Photo</label>
           <input type="file" id="profile-photo-input" accept="image/*" onchange="uploadProfilePhoto(this)">
-          <button type="button" class="upload-label" id="profile-recrop-btn" style="display:none" onclick="recropProfilePhoto()">✂️ Recrop</button>
           <button type="button" class="upload-label upload-label-quiet" id="profile-remove-photo-btn" style="display:none" onclick="removeProfilePhoto()">Remove</button>
         </div>
       </div>

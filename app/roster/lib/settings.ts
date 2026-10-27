@@ -37,6 +37,8 @@ export const DEFAULT_ROSTER_SETTINGS = {
   },
   access: {
     mode: "leaders-only",
+    // Comma-separated. Blank sends leader access requests to every admin.
+    requestEmails: "",
     passcode: "",
     passcodePermissions: {
       viewRoster: true,

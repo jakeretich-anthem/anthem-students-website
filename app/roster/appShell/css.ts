@@ -948,7 +948,7 @@ header { padding: 44px 0 24px; text-align: center; }
 .connected-toggle.on .toggle-dot { background: var(--connected); border-color: var(--connected); }
 .toggle-label { font-size: 13px; color: var(--muted); transition: color .2s; }
 .connected-toggle.on .toggle-label { color: var(--connected); }
-.photo-preview { width: 58px; height: 58px; border-radius: 50%; overflow: hidden; border: 2px solid var(--border2); position: relative; flex-shrink: 0; }
+.photo-preview { width: 58px; height: 58px; border-radius: 50%; overflow: hidden; border: 2px solid var(--border2); position: relative; flex-shrink: 0; cursor: pointer; }
 .photo-preview .av-fallback { font-size: 20px; }
 .photo-preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s; }
 .photo-preview img.loaded { opacity: 1; }
