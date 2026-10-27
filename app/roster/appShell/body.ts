@@ -3,7 +3,7 @@ export const HTML_BODY = `
 <div id="screen-gate" class="screen">
   <div class="gate-box">
     <div class="gate-logo">ASM<span id="year-gate">2026</span></div>
-    <div class="gate-sub">Worship Grow Go · Anthem Students</div>
+    <div class="gate-sub">Anthem Students</div>
 
     <!-- Two-lane landing (default) -->
     <div class="gate-lanes" id="gate-lanes">
@@ -129,7 +129,6 @@ export const HTML_BODY = `
   <div id="nav-roster" class="nav-panel">
     <div class="container">
       <header>
-        <div class="logo-line">Worship <span>Grow Go</span></div>
         <div class="subtitle">Anthem Students · ASM <span id="year-sub">2026</span></div>
       </header>
 
@@ -225,7 +224,7 @@ export const HTML_BODY = `
         <div class="roster-grid" id="ms-grid"></div>
       </div>
 
-      <footer>Worship Grow Go · Anthem Students <span id="year-footer">2026</span></footer>
+      <footer>Anthem Students <span id="year-footer">2026</span></footer>
     </div>
   </div>
 
@@ -314,7 +313,7 @@ export const HTML_BODY = `
     <div id="admin-mentors" class="admin-sec">
       <div id="admin-mentors-content" style="overflow-x:auto"><div class="loader"><div class="loader-ring"></div></div></div>
     </div>
-    <footer>Worship Grow Go · Admin</footer>
+    <footer>Anthem Students · Admin</footer>
   </div>
 </div>
 
@@ -728,7 +727,7 @@ export const HTML_BODY = `
       <div style="flex:1">
         <div class="field" style="margin-bottom:8px">
           <label>Photo URL (Google Drive)</label>
-          <input type="text" id="ef-photoUrl" placeholder="https://drive.google.com/file/d/…" oninput="updateEditPhotoPreview()">
+          <input type="text" id="ef-photoUrl" placeholder="Upload a photo, or paste an https:// image link" oninput="updateEditPhotoPreview()">
         </div>
         <label class="upload-label" for="photo-upload-input">📸 Upload Photo</label>
         <input type="file" id="photo-upload-input" accept="image/*" onchange="uploadStudentPhoto(this)">

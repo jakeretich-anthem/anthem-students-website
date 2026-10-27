@@ -22,9 +22,8 @@ export async function GET(request: Request) {
   const id = url.searchParams.get("id");
   if (!sk) return NextResponse.json({ error: "sk is required" }, { status: 400 });
 
-  // No id: return an id -> count map for the whole tab. The roster's "Most
-  // interactions" sort used to read a column the Apps Script maintained; that
-  // column is gone from the sheet, so the count comes from here now.
+  // No id: return an id -> count map for the whole tab, for the roster's
+  // "Most interactions" sort.
   if (!id) {
     const prefix = `interactions:${sk}:`;
     const { keys } = await kvList(prefix);
@@ -56,11 +55,6 @@ export async function POST(request: Request) {
   const actKey = `activity:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
   await kvPut(actKey, { ...interaction, studentName: studentName || "", sk, id, rowIndex, type: "hangout" }, 90 * 24 * 60 * 60);
 
-  const scriptUrl = process.env.GOOGLE_SCRIPT_URL;
-  if (scriptUrl && rowIndex !== undefined) {
-    const params = new URLSearchParams({ action: "addInteraction", payload: JSON.stringify({ sheet: sk, rowIndex, interaction }) });
-    fetch(scriptUrl + "?" + params).catch(() => {});
-  }
 
   return NextResponse.json({ success: true });
 }
@@ -71,7 +65,7 @@ export async function PUT(request: Request) {
   const user = perm.user;
 
   const body = await request.json();
-  const { sk, id, interactionId, changes, rowIndex } = body;
+  const { sk, id, interactionId, changes } = body;
 
   const kvKey = `interactions:${sk}:${id}`;
   const existing = (await kvGet<Interaction[]>(kvKey)) || [];
@@ -86,11 +80,6 @@ export async function PUT(request: Request) {
   existing[noteIndex] = { ...note, ...changes, updatedAt: new Date().toISOString() };
   await kvPut(kvKey, existing);
 
-  const scriptUrl = process.env.GOOGLE_SCRIPT_URL;
-  if (scriptUrl && rowIndex !== undefined) {
-    const params = new URLSearchParams({ action: "updateInteraction", payload: JSON.stringify({ sheet: sk, rowIndex, interactionId, changes }) });
-    fetch(scriptUrl + "?" + params).catch(() => {});
-  }
 
   return NextResponse.json({ success: true });
 }
@@ -101,7 +90,7 @@ export async function DELETE(request: Request) {
   const user = perm.user;
 
   const body = await request.json();
-  const { sk, id, interactionId, rowIndex } = body;
+  const { sk, id, interactionId } = body;
 
   const kvKey = `interactions:${sk}:${id}`;
   const existing = (await kvGet<Interaction[]>(kvKey)) || [];
@@ -115,11 +104,6 @@ export async function DELETE(request: Request) {
   const updated = existing.filter((n) => n.id !== interactionId);
   await kvPut(kvKey, updated);
 
-  const scriptUrl = process.env.GOOGLE_SCRIPT_URL;
-  if (scriptUrl && rowIndex !== undefined) {
-    const params = new URLSearchParams({ action: "deleteInteraction", payload: JSON.stringify({ sheet: sk, rowIndex, interactionId }) });
-    fetch(scriptUrl + "?" + params).catch(() => {});
-  }
 
   return NextResponse.json({ success: true });
 }

@@ -11,6 +11,9 @@ let editState = { mode:'add', sk:'hs', index:-1 };
 // ef-photoUrl's own transient-until-saveEdit() nature, since a new student
 // has no id yet to persist a photoCrop row under.
 let efPhotoCrop = null;
+// The thumbnail uploaded with the edit form's photo, and the photo URL it
+// belongs to — so a thumb is only sent if the URL field still holds that photo.
+let efThumbUrl = null, efThumbFor = null;
 let connectedVal = false;
 let interactionKey = null;
 let editInteractionContext = null;
@@ -552,32 +555,18 @@ function isConnected(person) { return connectionState(person) === 'connected'; }
 function statusOf(p) { return STATUS_LABELS[p.status] ? p.status : 'core'; }
 
 // ── ROSTER ───────────────────────────────────────────────────
-// Two-stage load: paint instantly from the Supabase-backed cache (names,
-// status, low-res thumbnails — see /roster/api/cache/read), then resolve the
-// authoritative Google Sheet in the background and reconcile. The cache is
-// kept in step by a Vercel Cron job and by a write-through patch on every
-// app-side edit (see app/roster/lib/rosterSync.ts and
-// app/roster/api/sheet/write/route.ts) — it's a mirror, never a second
-// source of truth.
-async function loadCacheSnapshot() {
+// One query against roster_students (see /roster/api/students), alongside the
+// per-student extras and the leader directory. Students carry a small
+// thumbUrl for the first paint; the full photo upgrades in after.
+async function fetchStudents() {
   try {
-    const res = await fetch('/roster/api/cache/read');
-    if (!res.ok) return false;
-    const data = await res.json();
-    if (!data || !data.hs || !Array.isArray(data.hs.students)) return false;
-    if (!data.hs.students.length && !data.ms.students.length) return false;
-    DATA = data;
-    return true;
-  } catch(e) { return false; }
-}
-
-async function fetchSheet() {
-  try {
-    const res = await fetch('/roster/api/sheet/read');
+    const res = await fetch('/roster/api/students');
     let data = null;
     try { data = await res.json(); } catch(_) {}
-    if (!res.ok) return { error: (data && data.error) || ('The roster sheet returned ' + res.status + '.') };
-    if (!data || !data.hs || !Array.isArray(data.hs.students)) return { error: 'The roster sheet came back in a shape we could not read.' };
+    if (!res.ok) return { error: (data && data.error) || ('The roster returned ' + res.status + '.') };
+    if (!data || !data.hs || !Array.isArray(data.hs.students) || !data.ms || !Array.isArray(data.ms.students)) {
+      return { error: 'The roster came back in a shape we could not read.' };
+    }
     return { data };
   } catch(e) {
     return { error: 'Could not reach the server. Check your connection and try again.' };
@@ -585,51 +574,33 @@ async function fetchSheet() {
 }
 
 async function loadRoster() {
-  // The cache paints the grid immediately, if there's anything in it yet —
-  // failure here is silent and non-fatal, the authoritative fetch below
-  // still runs and is what error-handling and the sweep hang off of.
-  let cacheThumbsById = null;
-  if (await loadCacheSnapshot()) {
-    cacheThumbsById = {hs:{}, ms:{}};
-    ['hs','ms'].forEach(sk => (DATA[sk].students||[]).forEach(p => {
-      if (p.thumbUrl) cacheThumbsById[sk][p.id] = p.thumbUrl;
-    }));
-    renderAll();
-  }
-
-  // Every failure here used to be swallowed and rendered as "No students here
-  // yet", which is indistinguishable from an empty sheet — say what went wrong
-  // instead, and give the leader a way to retry without reloading.
-  let error = null;
-  const [sheetResult, extras] = await Promise.all([
-    fetchSheet(),
+  // Students paint the moment they arrive; goals/notes/mentor pills (the
+  // slower bootstrap + leader directory) fill in on a second pass. Every
+  // failure is shown rather than rendered as "No students here yet", which is
+  // indistinguishable from an empty roster, with a way to retry.
+  const extrasReady = Promise.all([
     fetch('/roster/api/bootstrap').then(r => r.ok ? r.json() : null).catch(() => null),
-    // Mentor pills resolve a leader's name and face from this — waiting on it
-    // here means the final paint has them rather than popping in afterwards.
     loadLeaderDirectory(),
   ]);
+  const studentsResult = await fetchStudents();
   // Selection is by position in DATA, which a fresh load can reshuffle.
   selectedCards.clear();
-  if (sheetResult.error) {
-    error = sheetResult.error;
-  } else {
-    DATA = sheetResult.data;
-    // The sheet payload has no thumbUrl of its own — carry over what the
-    // cache snapshot already had so a card that's already showing a low-res
-    // photo doesn't flash back to the initials avatar while makeCard()
-    // rebuilds it a second time here.
-    if (cacheThumbsById) {
-      ['hs','ms'].forEach(sk => (DATA[sk].students||[]).forEach(p => {
-        p.thumbUrl = cacheThumbsById[sk][p.id] || null;
-      }));
-    }
-    applyBootstrapExtras(extras);
+  if (studentsResult.error) {
+    showRosterError(studentsResult.error);
+    renderAll();
+    return;
   }
-  showRosterError(error);
+  const data = studentsResult.data;
+  DATA = data;
+  showRosterError(null);
   renderAll();
-  // After the first paint, not before it: the sweep talks to the sheet once per
-  // stale student and the roster shouldn't sit blank behind it.
-  if (!error) sweepStaleConnections();
+
+  const [extras] = await extrasReady;
+  // A retry or reload may have replaced DATA while this was in flight.
+  if (DATA !== data) return;
+  applyBootstrapExtras(extras);
+  renderAll();
+  sweepStaleConnections();
 }
 
 // Replaces what used to be five separate per-tab-pair fetches (goals,
@@ -666,16 +637,14 @@ function applyBootstrapExtras(extras) {
   });
 }
 
-// Puts the sheet back in step with what the app is already showing. A student
-// whose last connection has aged past the window reads "Needs Connection" here
-// whatever column C says, so leaving the tick in place only means anyone
-// reading the spreadsheet directly sees something the app disagrees with.
+// Puts the stored Connected flag back in step with what the app is already
+// showing. A student whose last connection has aged past the window reads
+// "Needs Connection" whatever the flag says, so leaving it set only means the
+// counts and filters that read the raw flag disagree with the badge.
 //
 // Runs once per load, only for a session that can write, and only over students
 // who are actually out of step — normally that's nobody, and on the day a batch
-// of them lapse it's a handful. Sequential on purpose: the Apps Script is a
-// single-threaded endpoint behind one spreadsheet, and firing sixty writes at
-// it at once is how you get half of them dropped.
+// of them lapse it's a handful, so plain sequential writes are fine.
 async function sweepStaleConnections() {
   if (connectionResetDone || !canEdit) return;
   if (orgSettings?.connections?.autoReset === false) return;
@@ -691,7 +660,7 @@ async function sweepStaleConnections() {
   for (const {sk, idx, person} of stale) {
     try {
       const params = new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{connected:false}})});
-      const res = await fetch('/roster/api/sheet/write', writeInit(params));
+      const res = await fetch('/roster/api/students/write', writeInit(params));
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       // Column B is untouched by this write, so the badge stays "Needs
@@ -759,11 +728,9 @@ function makeCard(person, idx, sk) {
   // rebuilding the whole grid mid-tap.
   card.dataset.sk=sk; card.dataset.idx=idx;
   const g = GRADIENTS[idx % GRADIENTS.length];
-  // person.thumbUrl is the low-res copy re-hosted in Supabase Storage (see
-  // /roster/api/cache/read) — paint that first when it's there, and quietly
-  // upgrade to the full-res Drive photo once it's loaded, below. A student
-  // with no cached thumb yet (or loaded straight from the sheet, bypassing
-  // the cache) just gets the full-res image directly, same as before.
+  // person.thumbUrl is a small copy in Supabase Storage — paint that first
+  // when it's there, and quietly upgrade to the full photo once it's loaded,
+  // below. A student with no thumb just gets the full image directly.
   const fullThumb = driveThumb(person.photoUrl);
   const thumb = person.thumbUrl || fullThumb;
   const age = calcAge(person.birthday);
@@ -834,7 +801,7 @@ function makeCard(person, idx, sk) {
     const cardImg = card.querySelector('.card-avatar img');
     if (cardImg) {
       cardImg.onload = () => { cardImg.classList.add('loaded'); applyCropToImg(cardImg, person.photoCrop); };
-      // Started from the low-res thumb — preload the full-res Drive photo
+      // Started from the low-res thumb — preload the full-res photo
       // off-screen and swap once it's actually ready, so the card never
       // regresses to a slower/broken image if Drive is having a bad moment.
       if (person.thumbUrl && fullThumb && fullThumb !== thumb) {
@@ -857,8 +824,8 @@ function makeCard(person, idx, sk) {
   return card;
 }
 
-// Column B of the sheet — the last time this student's parents were connected
-// with. Written by the Apps Script when the Connected toggle is switched on,
+// The student's last_connected date — the last time their parents were
+// connected with. Stamped by the server when the Connected toggle is switched on,
 // and kept in step with the connection log, which is the fuller record of it.
 function lastConnectedLabel(person) {
   if (!person.lastConnected) return 'Parent connection · never';
@@ -898,14 +865,14 @@ async function changeStatus(sk, idx, value, el) {
 
   try {
     const params = new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{status:value}})});
-    const res = await fetch('/roster/api/sheet/write', writeInit(params));
+    const res = await fetch('/roster/api/students/write', writeInit(params));
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     showToast('✓ '+person.name+' → '+STATUS_LABELS[value],'ok');
   } catch(e) {
     person.status = previous;
     if (el) { el.value = previous; el.className = 'status-select status-' + previous; }
-    showToast('Could not save status — the sheet still says '+STATUS_LABELS[previous],'error');
+    showToast('Could not save status — it\\'s still '+STATUS_LABELS[previous],'error');
   }
 }
 
@@ -931,7 +898,7 @@ async function connectFamily(sk, idx) {
 
   try {
     const params = new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{connected:true, lastConnected:today}})});
-    const res = await fetch('/roster/api/sheet/write', writeInit(params));
+    const res = await fetch('/roster/api/students/write', writeInit(params));
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     if (data.lastConnected) person.lastConnected=data.lastConnected;
@@ -941,7 +908,7 @@ async function connectFamily(sk, idx) {
     person.connected = prevConnected;
     person.lastConnected = prevLastConnected;
     paintConnected(sk, idx);
-    showToast('Could not save — the sheet still says '+(prevConnected?'Family Connected With':'Not Connected'),'error');
+    showToast('Could not save — it\\'s still '+(prevConnected?'Family Connected With':'Not Connected'),'error');
     return;
   }
 
@@ -984,7 +951,7 @@ async function disconnectFamily(sk, idx) {
 
   try {
     const params = new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{connected:false}})});
-    const res = await fetch('/roster/api/sheet/write', writeInit(params));
+    const res = await fetch('/roster/api/students/write', writeInit(params));
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     paintConnected(sk, idx);
@@ -992,7 +959,7 @@ async function disconnectFamily(sk, idx) {
   } catch(e) {
     person.connected = true;
     paintConnected(sk, idx);
-    showToast('Could not save — the sheet still says Family Connected With','error');
+    showToast('Could not save — it\\'s still Family Connected With','error');
   }
 }
 
@@ -1420,6 +1387,7 @@ function openEditModal(sk, index) {
   setConnected(p.connected||false);
   setApprenticeField(!!p.apprentice);
   efPhotoCrop=p.photoCrop||null;
+  efThumbUrl=null; efThumbFor=null;
   updateEditPhotoPreview();
   document.getElementById('ef-delete-btn').style.display='inline-block';
   document.getElementById('ef-save-btn').textContent='Save Changes';
@@ -1434,6 +1402,7 @@ function openAddModal(sk) {
   ['ef-name','ef-grade','ef-school','ef-birthday','ef-notes','ef-photoUrl','ef-primary-goal'].forEach(id=>sv(id,''));
   sv('ef-status','core');
   efPhotoCrop=null;
+  efThumbUrl=null; efThumbFor=null;
   setConnected(false); setApprenticeField(false); updateEditPhotoPreview();
   document.getElementById('ef-delete-btn').style.display='none';
   document.getElementById('ef-save-btn').textContent='Add Student';
@@ -1518,15 +1487,22 @@ async function saveEdit() {
     status:v('ef-status')||'core', connected:connectedVal,
   };
   const {mode,sk,index}=editState;
+  // Stamp the leader's local "today" when Connected is switched on, rather
+  // than leave it to the server's UTC date (a day ahead on a US evening).
+  const wasConnected = mode==='edit' && !!(DATA[sk].students[index]||{}).connected;
+  if (fields.connected && !wasConnected) fields.lastConnected=todayISO();
+  if (efThumbUrl && fields.photoUrl===efThumbFor) fields.thumbUrl=efThumbUrl;
   try {
     if (mode==='edit') {
       const person=DATA[sk].students[index];
-      Object.assign(person, fields);
       const params=new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields})});
-      const res=await fetch('/roster/api/sheet/write', writeInit(params));
-      const data=await res.json();
-      // Column B is stamped by the script when connected flips on, so re-read
-      // the row's date from its response rather than guessing at it here.
+      const res=await fetch('/roster/api/students/write', writeInit(params));
+      const data=await res.json().catch(()=>({error:'Save failed ('+res.status+')'}));
+      if (!res.ok || data.error) throw new Error(data.error||'Save failed');
+      const photoChanged = fields.photoUrl!==person.photoUrl;
+      Object.assign(person, fields);
+      if (photoChanged) person.thumbUrl = fields.thumbUrl || null;
+      // The server stamps the date when connected flips on — take its answer.
       if (data.lastConnected!==undefined) person.lastConnected=data.lastConnected;
       person.photoCrop=efPhotoCrop;
       await Promise.all([
@@ -1534,12 +1510,13 @@ async function saveEdit() {
         savePhotoCrop(sk,person.id,fields.photoUrl?efPhotoCrop:null),
         efApprentice!==!!person.apprentice ? setApprentice(sk,index,efApprentice) : null,
       ]);
-      showToast(data.error?'Saved locally':'✓ Saved',data.error?'error':'ok');
+      showToast('✓ Saved','ok');
     } else {
       const params=new URLSearchParams({action:'add',payload:JSON.stringify({sheet:sk,person:fields})});
-      const res=await fetch('/roster/api/sheet/write', writeInit(params));
-      const data=await res.json();
-      const person={...fields,goals:[],primaryGoal:'',photoCrop:efPhotoCrop,lastConnected:data.lastConnected||''};
+      const res=await fetch('/roster/api/students/write', writeInit(params));
+      const data=await res.json().catch(()=>({error:'Save failed ('+res.status+')'}));
+      if (!res.ok || data.error || !data.id) throw new Error(data.error||'Save failed');
+      const person={...fields,thumbUrl:fields.thumbUrl||null,goals:[],primaryGoal:'',photoCrop:efPhotoCrop,lastConnected:data.lastConnected||''};
       if (data.newRowIndex!==undefined) person.rowIndex=data.newRowIndex;
       if (data.id) person.id=data.id;
       DATA[sk].students.push(person);
@@ -1548,10 +1525,13 @@ async function saveEdit() {
         savePhotoCrop(sk,person.id,fields.photoUrl?efPhotoCrop:null),
         efApprentice && person.id ? setApprentice(sk,DATA[sk].students.length-1,true) : null,
       ]);
-      showToast(data.error?'Added locally':'✓ Student added',data.error?'error':'ok');
+      showToast('✓ Student added','ok');
     }
   } catch(e) {
-    showToast('Network error — changes saved locally','error');
+    // Nothing was saved — keep the form open so the leader's edits aren't lost.
+    showToast((e && e.message) || 'Could not save — check your connection and try again','error');
+    btn.disabled=false; btn.textContent=origText;
+    return;
   }
   renderAll(); closeEditModal(); btn.disabled=false; btn.textContent=origText;
 }
@@ -1565,9 +1545,19 @@ function confirmDelete() {
 async function doConfirmDeleteStudent() {
   const {sk,index}=editState;
   const name=DATA[sk].students[index].name;
-  const person=DATA[sk].students.splice(index,1)[0];
+  const person=DATA[sk].students[index];
   const params=new URLSearchParams({action:'delete',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,studentName:name})});
-  await fetch('/roster/api/sheet/write', writeInit(params));
+  try {
+    const res=await fetch('/roster/api/students/write', writeInit(params));
+    const data=await res.json().catch(()=>({error:'Delete failed ('+res.status+')'}));
+    if (!res.ok || data.error) throw new Error(data.error||'Delete failed');
+  } catch(e) {
+    closeModal('confirm-student-delete-modal');
+    showToast((e && e.message) || 'Could not remove '+name,'error');
+    return;
+  }
+  const at=DATA[sk].students.indexOf(person);
+  if (at!==-1) DATA[sk].students.splice(at,1);
   closeModal('confirm-student-delete-modal');
   renderAll(); closeEditModal(); showToast('Removed '+name,'ok');
 }
@@ -1784,7 +1774,7 @@ function renderNotesList(notes, sk, index) {
   const sheetNote=(person.notes||'').trim();
   const pinned = sheetNote
     ? '<div class="note-pinned">'+
-        '<div class="note-pinned-label">📌 From the sheet</div>'+
+        '<div class="note-pinned-label">📌 Pinned note</div>'+
         '<div class="note-pinned-body">'+dashEsc(sheetNote)+'</div>'+
       '</div>'
     : '';
@@ -1896,7 +1886,7 @@ function renderConnectionsList(connections, sk, index) {
     // A student can carry a date in column B from before this log existed, so
     // say where that one date came from rather than claiming there were none.
     el.innerHTML = person.lastConnected
-      ? '<div class="empty"><p>No days logged yet. The sheet has ' + dashEsc(formatDate(person.lastConnected)) + ' as the last connection.</p></div>'
+      ? '<div class="empty"><p>No days logged yet. The roster has ' + dashEsc(formatDate(person.lastConnected)) + ' as the last connection.</p></div>'
       : '<div class="empty"><p>No parent connections logged yet.</p></div>';
     return;
   }
@@ -1963,14 +1953,14 @@ async function syncLastConnected(sk, index, latest) {
       // has to come off with the date — otherwise the tick outlives its reason.
       fields: next ? {lastConnected: next} : {lastConnected:'', connected:false},
     })});
-    const res = await fetch('/roster/api/sheet/write', writeInit(params));
+    const res = await fetch('/roster/api/students/write', writeInit(params));
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     if (!next) person.connected = false;
     paintConnected(sk, index, false);
     refreshConnectionsPanel();
   } catch(e) {
-    showToast("Saved to the log, but the sheet's date didn't update",'error');
+    showToast("Saved to the log, but the last-connection date didn't update",'error');
   }
 }
 
@@ -1986,7 +1976,7 @@ async function addConnection() {
 
   const {sk, index} = currentStudentKey;
   const person = DATA[sk].students[index];
-  if (!person.id) { showToast('This student has no sheet ID yet — reload the roster','error'); return; }
+  if (!person.id) { showToast('This student has no ID yet — reload the roster','error'); return; }
 
   try {
     const res = await fetch('/roster/api/student/connections', {
@@ -2081,9 +2071,9 @@ async function addNote() {
 
   const {sk,index}=currentStudentKey;
   const person=DATA[sk].students[index];
-  // Notes are filed against the sheet's ID column, not the row position. A row
-  // the Apps Script hasn't stamped an ID onto yet has nowhere to file them.
-  if (!person.id) { showToast('This student has no sheet ID yet — reload the roster','error'); return; }
+  // Notes are filed against the student's ID, not the row position. A student
+  // without one (only ever a half-saved add) has nowhere to file them.
+  if (!person.id) { showToast('This student has no ID yet — reload the roster','error'); return; }
 
   input.value='';
   try {
@@ -2304,7 +2294,7 @@ async function confirmDeleteInteraction() {
 
 // ── ACTIVITY FEED ─────────────────────────────────────────────
 // Every kind of "did something" event shares the same activity: log now (see
-// api/student/interactions, connections, notes, and api/sheet/write) — a
+// api/student/interactions, connections, notes, and api/students/write) — a
 // hangout, a parent connection, a note, or a student added/edited/removed.
 // Older records from before the type field existed have none, and those are
 // all hangouts (the only writer at the time), so a missing type defaults to it.
@@ -3868,6 +3858,7 @@ async function editFormCropCallback(crop, file) {
     const data=await uploadOriginalPhoto(file,'student');
     if(!data.url){showToast(data.error||'Upload failed','error');return;}
     url=data.url; sv('ef-photoUrl',url);
+    efThumbUrl=data.thumbUrl||null; efThumbFor=url;
   }
   efPhotoCrop=crop;
   updateEditPhotoPreview();
@@ -3890,9 +3881,11 @@ function studentDetailCropCallback(sk, index) {
       const data=await uploadOriginalPhoto(file,'student');
       if(!data.url){showToast(data.error||'Upload failed','error');return;}
       url=data.url;
-      const params=new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{photoUrl:url}})});
-      await fetch('/roster/api/sheet/write', writeInit(params));
-      person.photoUrl=url;
+      const params=new URLSearchParams({action:'update',payload:JSON.stringify({sheet:sk,id:person.id,rowIndex:person.rowIndex,fields:{photoUrl:url,thumbUrl:data.thumbUrl||null}})});
+      const res=await fetch('/roster/api/students/write', writeInit(params));
+      const saved=await res.json().catch(()=>({error:'Save failed ('+res.status+')'}));
+      if(!res.ok||saved.error){showToast(saved.error||'Could not save the photo','error');return;}
+      person.photoUrl=url; person.thumbUrl=data.thumbUrl||null;
     }
     person.photoCrop=crop;
     await savePhotoCrop(sk, person.id, crop);
@@ -4140,15 +4133,20 @@ function saveCrop() {
 // stored as fractions, not baked into pixels), so shrinking the *whole* photo
 // here loses nothing the crop needs — it just has to stay uncropped.
 const UPLOAD_MAX_EDGE = 2048;
-function downscaleForUpload(file) {
+// The grid's first-paint image — small enough that a hundred of them cost
+// less than one full photo.
+const THUMB_MAX_EDGE = 160;
+function downscaleForUpload(file) { return resizeImage(file, UPLOAD_MAX_EDGE, 0.88, false); }
+function makeThumb(file) { return resizeImage(file, THUMB_MAX_EDGE, 0.8, true); }
+function resizeImage(file, maxEdge, quality, alwaysEncode) {
   return new Promise(resolve => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
       const w = img.naturalWidth, h = img.naturalHeight;
-      const scale = Math.min(1, UPLOAD_MAX_EDGE / Math.max(w, h));
-      if (scale === 1 && file.size < 1.5*1024*1024) { resolve(file); return; }
+      const scale = Math.min(1, maxEdge / Math.max(w, h));
+      if (!alwaysEncode && scale === 1 && file.size < 1.5*1024*1024) { resolve(file); return; }
       try {
         const canvas = document.createElement('canvas');
         canvas.width = Math.round(w*scale); canvas.height = Math.round(h*scale);
@@ -4157,13 +4155,13 @@ function downscaleForUpload(file) {
         ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         canvas.toBlob(blob => {
-          if (!blob) { resolve(file); return; }
+          if (!blob) { resolve(alwaysEncode ? null : file); return; }
           const name = (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg';
           resolve(new File([blob], name, { type: 'image/jpeg' }));
-        }, 'image/jpeg', 0.88);
-      } catch (e) { resolve(file); }
+        }, 'image/jpeg', quality);
+      } catch (e) { resolve(alwaysEncode ? null : file); }
     };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(alwaysEncode ? null : file); };
     img.src = url;
   });
 }
@@ -4171,9 +4169,11 @@ function downscaleForUpload(file) {
 async function uploadOriginalPhoto(file, type) {
   showToast('Uploading…');
   try {
+    const thumb = type==='student' ? await makeThumb(file) : null;
     file = await downscaleForUpload(file);
     if (file.size > 4*1024*1024) return {error:'Photo is too large — try a smaller one'};
     const fd=new FormData(); fd.append('file',file,file.name||'photo.jpg'); fd.append('type',type);
+    if (thumb && thumb.type==='image/jpeg') fd.append('thumb',thumb,'thumb.jpg');
     const res=await fetch('/roster/api/upload-photo',{method:'POST',body:fd});
     const data=await res.json().catch(()=>({}));
     if(res.status===413) return {error:'Photo is too large — try a smaller one'};
@@ -4245,7 +4245,7 @@ function applyBranding() {
   if (gateSub && orgSettings.campus) {
     gateSub.textContent = name + ' · ' + orgSettings.campus;
   } else if (gateSub) {
-    gateSub.textContent = 'Worship Grow Go · ' + name;
+    gateSub.textContent = name;
   }
 
   // Update nav logo

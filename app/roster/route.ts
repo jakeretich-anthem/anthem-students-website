@@ -16,7 +16,7 @@ function getHTML() {
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ASM Roster">
 <meta name="theme-color" content="#0a0a0f">
-<title>ASM 2026 · Worship Grow Go</title>
+<title>ASM 2026 · Anthem Students</title>
 <link rel="manifest" href="/roster/manifest.json">
 <!-- Scoped to /roster on purpose: without these the browser falls back to the
      main site's /favicon.ico, and the roster app gets its own mark. -->

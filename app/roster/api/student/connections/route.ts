@@ -4,12 +4,9 @@ import { requirePermission } from "../../../lib/auth";
 
 // Every time a leader connects with a student's family, a dated row lands here.
 //
-// Column B of the sheet ("Last connection date") only ever holds the most
-// recent one, because a spreadsheet cell can hold exactly one date — so the
-// history it overwrote each time was simply lost. The sheet stays the source
-// of truth for "when was the last one" (the Apps Script stamps it on an
-// OFF -> ON flip, and other tooling reads that column); this store keeps the
-// full log behind it, so a leader can see and correct the individual days.
+// roster_students.last_connected only ever holds the most recent one (stamped
+// on an OFF -> ON flip by api/students/write); this store keeps the full log
+// behind it, so a leader can see and correct the individual days.
 //
 // Keyed by the student's stable sheet ID (column K), never by row position —
 // see the note in ../notes/route.ts for what happened the two times a store
